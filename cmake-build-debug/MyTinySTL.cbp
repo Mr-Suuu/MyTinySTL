@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6"/>
+	<Project>
+		<Option title="MyTinySTL"/>
+		<Option makefile_is_custom="1"/>
+		<Option compiler="gcc"/>
+		<Option virtualFolders="CMake Files\;"/>
+		<Build>
+			<Target title="all">
+				<Option working_dir="D:/code/MyTinySTL/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 all"/>
+					<CompileFile command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="MyTinySTL">
+				<Option output="D:/code/MyTinySTL/cmake-build-debug/MyTinySTL.exe" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="D:/code/MyTinySTL/cmake-build-debug"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="e:\mingw\mingw\bin\../lib/gcc/x86_64-w64-mingw32/9.2.0/../../../../include/c++/9.2.0"/>
+					<Add directory="e:\mingw\mingw\bin\../lib/gcc/x86_64-w64-mingw32/9.2.0/../../../../include/c++/9.2.0/x86_64-w64-mingw32"/>
+					<Add directory="e:\mingw\mingw\bin\../lib/gcc/x86_64-w64-mingw32/9.2.0/../../../../include/c++/9.2.0/backward"/>
+					<Add directory="e:\mingw\mingw\bin\../lib/gcc/x86_64-w64-mingw32/9.2.0/include"/>
+					<Add directory="e:\mingw\mingw\bin\../lib/gcc/x86_64-w64-mingw32/9.2.0/include-fixed"/>
+					<Add directory="e:\mingw\mingw\bin\../lib/gcc/x86_64-w64-mingw32/9.2.0/../../../../x86_64-w64-mingw32/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 MyTinySTL"/>
+					<CompileFile command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="MyTinySTL/fast">
+				<Option output="D:/code/MyTinySTL/cmake-build-debug/MyTinySTL.exe" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="D:/code/MyTinySTL/cmake-build-debug"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="e:\mingw\mingw\bin\../lib/gcc/x86_64-w64-mingw32/9.2.0/../../../../include/c++/9.2.0"/>
+					<Add directory="e:\mingw\mingw\bin\../lib/gcc/x86_64-w64-mingw32/9.2.0/../../../../include/c++/9.2.0/x86_64-w64-mingw32"/>
+					<Add directory="e:\mingw\mingw\bin\../lib/gcc/x86_64-w64-mingw32/9.2.0/../../../../include/c++/9.2.0/backward"/>
+					<Add directory="e:\mingw\mingw\bin\../lib/gcc/x86_64-w64-mingw32/9.2.0/include"/>
+					<Add directory="e:\mingw\mingw\bin\../lib/gcc/x86_64-w64-mingw32/9.2.0/include-fixed"/>
+					<Add directory="e:\mingw\mingw\bin\../lib/gcc/x86_64-w64-mingw32/9.2.0/../../../../x86_64-w64-mingw32/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 MyTinySTL/fast"/>
+					<CompileFile command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="edit_cache">
+				<Option working_dir="D:/code/MyTinySTL/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 edit_cache"/>
+					<CompileFile command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="rebuild_cache">
+				<Option working_dir="D:/code/MyTinySTL/cmake-build-debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 rebuild_cache"/>
+					<CompileFile command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="E:/MinGW/MinGW/bin/mingw32-make.exe -f &quot;D:/code/MyTinySTL/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+		</Build>
+		<Unit filename="D:/code/MyTinySTL/main.cpp">
+			<Option target="MyTinySTL"/>
+		</Unit>
+		<Unit filename="D:/code/MyTinySTL/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+	</Project>
+</CodeBlocks_project_file>
