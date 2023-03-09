@@ -740,6 +740,151 @@ namespace mystl {
         cap_ = new_begin + new_size;
     }
 
+// fill_insert 函数
+// 在指定位置插入n个value，并返回插入的位置
+    template<class T>
+    typename vector<T>::iterator
+    vector<T>::
+    fill_insert(iterator pos, size_type n, const value_type &value) {
+        if (n == 0) return pos;
+        const size_type xpos = pos - begin_;  // 插入位置前面有几个元素
+        const value_type value_copy = value;  // 避免被覆盖
+        if (static_cast<size_type>(cap_ - end_) >= n) {
+            // 若备用空间大于等于增加的空间
+            const size_type after_elems = end_ + pos;  // 初始化后移后的结尾位置
+            auto old_end = end_;  // 保存旧的结尾位置
+            if (after_elems > n) {
+                // 若假定的结尾位置比要插入的个数大，这样判断有什么用处？
+                // uninitialized_copy：复制来自范围 [end_ - n, end_) 的元素到始于 end_ 的未初始化内存
+                mystl::uninitialized_copy(end_ - n, end_, end_);
+                end_ += n;  // 结尾位置后移n位
+                // 移动来自范围 [pos, old_end - n) 的元素到终于 old_end 的另一范围
+                // 可能出现pos > old_end的情况，此时即不用移动元素
+                mystl::move_backward(pos, old_end - n, old_end);  // 移出n个位置，用于插入元素
+                // 将 [pos, n) 的值填充为value_copy
+                mystl::uninitialized_fill_n(pos, n, value_copy);
+            } else {
+                // 假定的结尾位置比插入个数小或等于，这样判断有什么用处？
+                // 这里没搞懂？
+                // 将 [end_, n - after_elems) 的值填充为 value_copy
+                end_ = mystl::uninitialized_fill_n(end_, n - after_elems, value_copy);
+                // 从范围 [pos, old_end) 移动元素到始于 end_ 的未初始化内存区域
+                end_ = mystl::uninitialized_move(pos, old_end, end_);
+                // 将 [pos, after_elems) 的值填充为 value_copy
+                mystl::uninitialized_fill_n(pos, after_elems, value_copy);
+            }
+        } else {
+            // 若备用空间不足
+            const auto new_size = get_new_cap(n);  // 在旧空间的基础上添加空间  增加n
+            auto new_begin = data_allocator::allocate(new_size);  // 获得新的起始点
+            auto new_end = new_begin;  // 初始化新的结束位置
+            try {
+                // 先将begin_到pos的元素移动到新的地址空间
+                new_end = mystl::uninitialized_move(begin_, pos, new_begin);
+                // 再填充n个value
+                new_end = mystl::uninitialized_fill_n(new_end, n, value);
+                // 最后将pos到end_的元素移动过去即可
+                new_end = mystl::uninitialized_move(pos, end_, new_end);
+            }
+            catch (...) {
+                // 若出现异常则恢复并抛出
+                // 从指针 new_begin 所引用的存储解分配，其中指针必须是通过先前对 allocate() 获得的指针
+                destroy_and_recover(new_begin, new_end, new_size);
+                throw;
+            }
+            // 销毁旧的存储空间
+            data_allocator::deallocate(begin_, cap_ - begin_);
+            // 更新位置
+            begin_ = new_begin;
+            end_ = new_end;
+            cap_ = begin_ + new_size;
+        }
+        return begin_ + xpos;
+    }
+
+// copy_insert 函数
+// 复制迭代器中的元素到pos起始的位置
+    template<class T>
+    template<class IIter>
+    void vector<T>::
+    copy_insert(iterator pos, IIter first, IIter last) {
+        // first和last是输入序列的迭代器，其中包含len个元素
+        if (first == last) return;
+        const auto n = mystl::distance(first, last);  // 获得first - last的长度
+        if ((cap_ - end_) >= n) {
+            // 若备用空间大小足够
+            const auto after_elems = end_ - pos;
+            auto old_end = end_;
+            if (after_elems > n) {
+                // 若假定的结尾位置比要插入的个数大，这样判断有什么用处？
+                // 复制来自范围 [end_ - n, end_) 的元素到始于 end_ 的未初始化内存
+                end_ = mystl::uninitialized_copy(end_ - n, end_, end_);
+                // 移动来自范围 [pos, old_end - n) 的元素到终于 old_end 的另一范围
+                mystl::move_backward(pos, old_end - n, old_end);
+                // 复制来自范围 [first, last) 的元素到始于 pos 的未初始化内存
+                mystl::uninitialized_copy(first, last, pos);
+            } else {
+                // 若假定的结尾位置比要插入的个数小，这样判断有什么用处？
+                auto mid = first;
+                mystl::advance(mid, after_elems);  // 将mid后移after_elems位
+                // 复制来自范围 [mid, last) 的元素到始于 end_ 的未初始化内存
+                end_ = mystl::uninitialized_copy(mid, last, end_);
+                // 移动来自范围 [pos, old_end) 的元素到终于 end_ 的另一范围
+                end_ = mystl::uninitialized_move(pos, old_end, end_);
+                // 复制来自范围 [first, mid) 的元素到始于 pos 的未初始化内存
+                mystl::uninitialized_copy(first, mid, pos);
+            }
+        } else {
+            // 备用空间不足
+            const auto new_size = get_new_cap(n);  // 在旧空间的基础上添加空间  增加n
+            auto new_begin = data_allocator::allocate(new_size);  // 获取新的起始位置
+            auto new_end = new_begin;  // 初始化新的结束位置
+            try {
+                // 先将begin_到pos的元素移动到新的地址空间
+                new_end = mystl::uninitialized_move(begin_, pos, new_begin);
+                // 再复制来自范围 [first, last) 的元素到始于 new_end 的未初始化内存
+                new_end = mystl::uninitialized_copy(first, last, new_end);
+                // 最后将pos到end_的元素移动过去即可
+                new_end = mystl::uninitialized_move(pos, end_, new_end);
+            }
+            catch (...) {
+                // 若出现异常则恢复并抛出
+                // 从指针 new_begin 所引用的存储解分配，其中指针必须是通过先前对 allocate() 获得的指针
+                destroy_and_recover(new_begin, new_end, new_size);
+                throw;
+            }
+            // 销毁旧的存储空间
+            data_allocator::deallocate(begin_, cap_ - begin_);
+            // 更新位置
+            begin_ = new_begin;
+            end_ = new_end;
+            cap_ = begin_ + new_size;
+        }
+    }
+
+// reinsert 函数
+// 创建新的大小为size的空间，并将旧的空间中的数据移动到新的存储空间中
+    template<class T>
+    void vector<T>::reinsert(size_type size) {
+        auto new_begin = data_allocator::allocate(size);  // 获取大小为size的新空间的起始位置
+        try {
+            // 复制来自范围 [begin_, end_) 的元素到始于 new_begin 的位置
+            mystl::uninitialized_move(begin_, end_, new_begin);
+        }
+        catch (...) {
+            // 若出现异常则恢复并抛出
+            // 从指针 new_begin 所引用的存储解分配，其中指针必须是通过先前对 allocate() 获得的指针
+            data_allocator::deallocate(new_begin, size);
+            throw;
+        }
+        // 销毁旧的存储空间
+        data_allocator::deallocate(begin_, cap_ - begin_);
+        // 更新位置
+        begin_ = new_begin;
+        end_ = begin_ + size;
+        cap_ = begin_ + size;
+    }
+
 } // namespace mystl
 #endif // !MYTINYSTL_VECTOR_H_
 
