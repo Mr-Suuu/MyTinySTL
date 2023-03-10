@@ -885,6 +885,63 @@ namespace mystl {
         cap_ = begin_ + size;
     }
 
+/*****************************************************************************************************/
+// 重载比较操作符
+// a * b
+// lhs表示左操作数a，rhs表示右操作数b
+
+    // 重载 ==
+    template<class T>
+    bool operator==(const vector<T> &lhs, const vector<T> &rhs) {
+        // equal：范围 [lhs.begin(), lhs.end()) 和
+        //        范围 [rhs.begin(), rhs.begin() + (lhs.end() - lhs.begin())) 进行比较
+        return lhs.size() == rhs.size() &&
+               mystl::equal(lhs.begin(), lhs.end(), rhs.begin());
+    }
+
+    // 重载 <
+    template<class T>
+    bool operator<(const vector<T> &lhs, const vector<T> &rhs) {
+        // lexicographical_compare：
+        //     检查第一个范围 [lhs.begin(), lhs.end()) 是否按字典序小于
+        //        第二个范围 [rhs.begin(), rhs.begin() + (lhs.end() - lhs.begin()))
+        return mystl::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin());
+    }
+
+    // 重载 !=
+    template<class T>
+    bool operator!=(const vector<T> &lhs, const vector<T> &rhs) {
+        // 利用重载了的 == 实现
+        return !(lhs == rhs);
+    }
+
+    // 重载 >
+    template<class T>
+    bool operator>(const vector<T> &lhs, const vector<T> &rhs) {
+        // 利用重载了的 < 实现
+        return rhs < lhs;
+    }
+
+    // 重载 <=
+    template<class T>
+    bool operator<=(const vector<T> &lhs, const vector<T> &rhs) {
+        // 利用重载了的 < 实现
+        return !(rhs < lhs);
+    }
+
+    // 重载 >=
+    template<class T>
+    bool operator>=(const vector<T> &lhs, const vector<T> &rhs) {
+        // 利用重载了的 < 实现
+        return !(lhs < rhs);
+    }
+
+// 重载 mystl 的 swap
+    template<class T>
+    void swap(vector<T> &lhs, vector<T> &rhs) {
+        lhs.swap(rhs);
+    }
+
 } // namespace mystl
 #endif // !MYTINYSTL_VECTOR_H_
 
