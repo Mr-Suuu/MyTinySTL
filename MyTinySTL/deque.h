@@ -212,7 +212,268 @@ namespace mystl {
 
 // 模板类deque
 // 模板参数代表数据类型
+    template<class T>
+    class deque {
+    public:
+        // deque 的型别定义
+        typedef mystl::allocator<T> allocator_type;
+        typedef mystl::allocator<T> data_allocator;
+        typedef mystl::allocator<T *> map_allocator;
 
+        typedef typename allocator_type::value_type value_type;
+        typedef typename allocator_type::pointer pointer;
+        typedef typename allocator_type::const_pointer const_pointer;
+        typedef typename allocator_type::reference reference;
+        typedef typename allocator_type::const_reference const_reference;
+        typedef typename allocator_type::size_type size_type;
+        typedef typename allocator_type::difference_type difference_type;
+        typedef pointer *map_pointer;
+        typedef const_pointer *const_map_pointer;
+
+        typedef deque_iterator<T, T &, T *> iterator;
+        typedef deque_iterator<T, const T &, const T *> const_iterator;
+        typedef mystl::reverse_iterator<iterator> reverse_iterator;
+        typedef mystl::reverse_iterator<const_iterator> const_reverse_iterator;
+
+        allocator_type get_allocator() { return allocator_type(); }
+
+        static const size_type buffer_size = deque_buf_size<T>::value;
+
+    private:
+        // 用以下四个数据来表现一个deque
+        iterator begin_;  // 指向第一个节点
+        iterator end_;  // 指向最后一个节点
+        map_pointer map_;  // 指向一块map，map中的每个元素都是一个指针，指向一个缓冲区
+        size_type map_size_;  // map 内指针的数目
+
+    public:
+        // 构造、复制、移动、析构函数
+        deque() { fill_init(0, value_type()); }
+
+        // explicit：禁止隐式转换
+        explicit deque(size_type n) { fill_init(n, value_type()); }
+
+        deque(size_type n, const value_type &value) { fill_init(n, value); }
+
+        // typename和class作用类似，定义普通的类型可以使用class，但定义带::的用typename
+        template<class IIter, typename std::enable_if<
+                mystl::is_input_iterator<IIter>::value, int>::type = 0>
+        deque(IIter first, IIter last) { copy_init(first, last, iterator_category(first)); }
+
+        deque(std::initializer_list<value_type> ilist) {
+            copy_init(ilist.begin(), ilist.end(), mystl::forward_iterator_tag());
+        }
+
+        deque(const deque &rhs) {
+            copy_init(rhs.begin(), rhs.end(), mystl::forward_iterator_tag());
+        }
+
+        // noexcept不报错
+        deque(deque &&rhs) noexcept
+                : begin_(mystl::move(rhs.begin_)),
+                  end_(mystl::move(rhs.end_)),
+                  map_(rhs.map_),
+                  map_size_(rhs.map_size_) {
+            rhs.map_ = nullptr;
+            rhs.map_size_ = 0;
+        }
+
+        deque &operator=(const deque &rhs);
+
+        deque &operator=(deque &&rhs);
+
+        // 可将列表初始化作为参数传入
+        deque &operator=(std::initializer_list<value_type> ilist) {
+            deque tmp(ilist);
+            swap(tmp);
+            return *this;
+        }
+
+        // 析构函数
+        ~deque() {
+            if (map_ != nullptr) {
+                clear();
+                data_allocator::deallocate(*begin_.node, buffer_size);
+                *begin_.node = nullptr;
+                map_allocator::deallocate(map_, map_size_);
+                map_ = nullptr;
+            }
+        }
+
+    public:
+        // 迭代器相关操作
+        iterator begin() noexcept { return begin_; }
+
+        // const_iterator：只能读取，不能修改
+        const_iterator begin() const noexcept { return begin_; }
+
+        iterator end() noexcept { return end_; }
+
+        const_iterator end() const noexcept { return end_; }
+
+        // 反向迭代
+        reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
+
+        const_reverse_iterator rbegin() const noexcept { return reverse_iterator(end()); }
+
+        reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
+
+        const_reverse_iterator rend() const noexcept { return reverse_iterator(begin()); }
+
+        // cbegin：返回const的begin
+        const_iterator cbegin() const noexcept { return begin(); }
+
+        const_iterator cend() const noexcept { return end(); }
+
+        // crbegin：返回const的rbegin
+        const_reverse_iterator crbegin() const noexcept { return rbegin(); }
+
+        const_reverse_iterator crend() const noexcept { return rend(); }
+
+        // 容量相关操作
+        bool empty() const noexcept { return begin() == end(); }
+
+        size_type size() const noexcept { return end_ - begin_; }
+
+        size_type max_size() const noexcept { return static_cast<size_type>(-1); }
+
+        void resize(size_type new_size) { resize(new_size, value_type()); }
+
+        void resize(size_type new_size, const value_type &value);
+
+        // shrink_to_fit：减少容器的容量以适应其大小并销毁超出容量的所有元素
+        void shrink_to_fit() noexcept;
+
+        // 访问元素的相关操作
+        reference operator[](size_type n) {
+            MYSTL_DEBUG(n < size());
+            return begin_[n];
+        }
+
+        const_reference operator[](size_type n) const {
+            MYSTL_DEBUG(n < size());
+            return begin_[n];
+        }
+
+        // at：返回对出现在双端队列中位置 n 的元素的引用
+        reference at(size_type n) {
+            THROW_OUT_OF_RANGE_IF(!(n < size()), "deque<T>::at() subscript out of range");
+            return (*this)[n];
+        }
+
+        const_reference at(size_type n) const {
+            THROW_OUT_OF_RANGE_IF(!(n < size()), "deque<T>::at() subscript out of range");
+            return (*this)[n];
+        }
+
+        // 返回开头的引用
+        reference front() {
+            MYSTL_DEBUG(!empty());
+            return *begin();
+        }
+
+        const_reference front() const {
+            MYSTL_DEBUG(!empty());
+            return *begin();
+        }
+
+        // 返回结尾的引用
+        reference back() {
+            MYSTL_DEBUG(!empty());
+            return *(end() - 1);
+        }
+
+        const_reference back() const {
+            MYSTL_DEBUG(!empty());
+            return *(end() - 1);
+        }
+
+        // 修改容器相关操作
+        // assign：为 deque 容器分配新的内容，并相应地修改容器的大小
+        // 如：assign(5, 6)  -> 6 6 6 6 6
+        void assign(size_type n, const value_type &value) {
+            fill_assign(n, value);
+        }
+
+        // 功能同上，传参不同，这里传入的是两个迭代器对象
+        template<class IIter, typename std::enable_if<
+                mystl::is_input_iterator<IIter>::value, int>::type = 0>
+        void assign(IIter first, IIter last) {
+            // iterator_category？写完这个写iterator.h
+            copy_assign(first, last, iterator_category(first));
+        }
+
+        // 功能同上，传参不同，这里传入的是一个初始化好的列表
+        void assign(std::initializer_list<value_type> ilist) {
+            copy_assign(ilist.begin(), ilist.end(), mystl::forward_iterator_tag{});
+        }
+
+        // emplace_front / emplace_back / emplace
+
+        // emplace_front：在双端队列的前面插入新元素并将双端队列的大小增加一
+        template<class ...Args>
+        void emplace_front(Args &&...args);
+
+        // emplace_back：在双端队列的后面插入新元素并将双端队列的大小增加一
+        template<class ...Args>
+        void emplace_back(Args &&...args);
+
+        // emplace：在双端队列指定位置插入新元素并将双端队列的大小增加一
+        template<class ...Args>
+        void emplace(iterator pos, Args &&...args);
+
+        // push_front / push_back
+        // emplace效率比push高，因为不用调用移动构造函数和拷贝构造函数
+        // push_front：在开始处插入元素
+        void push_front(const value_type &value);
+
+        // push_back：在结束位置插入元素
+        void push_back(const value_type &value);
+
+        // 在开始位置插入元素，这里的push调用了移动构造函数
+        void push_back(value_type &&value) { emplace_back(mystl::move(value)); }
+
+        // 在结束位置插入元素，这里的push调用了移动构造函数
+        void push_front(value_type &&value) { emplace_front(mystl::move(value)); }
+
+        // pop_back / pop_front
+        // 弹出开头元素
+        void pop_front();
+
+        // 弹出结尾元素
+        void pop_back();
+
+        // insert
+        // 在指定位置插入元素
+        iterator insert(iterator position, const value_type &value);
+        // 在指定位置插入元素
+        iterator insert(iterator position, value_type &&value);
+
+        // 在指定位置插入n个元素
+        void insert(iterator position, size_type n, const value_type &value);
+
+        // 在指定位置插入迭代器first到last之间的元素
+        template<class IIter, typename std::enable_if<
+                mystl::is_input_iterator<IIter>::value, int>::type = 0>
+        void insert(iterator position, IIter first, IIter last) {
+            insert_dispatch(position, first, last, iterator_category(first));
+        }
+
+        // erase /clear
+        // 删除指定位置的元素
+        iterator erase(iterator position);
+
+        // 删除迭代器first到last之间的元素
+        iterator erase(iterator first, iterator last);
+
+        // 清空整个队列
+        void clear();
+
+        // swap
+        // 交换队列
+        void swap(deque &rhs) noexcept;
+
+    };
 
 } // namespace mystl
 #endif // !MYTINYSTL_DEQUE_H_
