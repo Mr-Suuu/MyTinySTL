@@ -446,6 +446,7 @@ namespace mystl {
         // insert
         // 在指定位置插入元素
         iterator insert(iterator position, const value_type &value);
+
         // 在指定位置插入元素
         iterator insert(iterator position, value_type &&value);
 
@@ -473,7 +474,162 @@ namespace mystl {
         // 交换队列
         void swap(deque &rhs) noexcept;
 
+    private:
+        // helper functions
+
+        // 创建节点 / 销毁节点
+        // create node / destroy node
+        map_pointer create_map(size_type size);
+
+        void create_buffer(map_pointer nstart, map_pointer nfinish);
+
+        void destroy_buffer(map_pointer nstart, map_pointer nfinish);
+
+        // initialize  初始化
+        void map_init(size_type nelem);
+
+        void fill_init(size_type n, const value_type &value);
+
+        template<class IIter>
+        void copy_init(IIter, IIter, input_iterator_tag);
+
+        template<class FIter>
+        void copy_init(FIter, FIter, forward_iterator_tag);
+
+        // assign  为 deque 容器分配新的内容，并相应地修改容器的大小
+        void fill_assign(size_type n, const value_type &value);
+
+        template<class IIter>
+        void copy_assign(IIter first, IIter last, input_iterator_tag);
+
+        template<class FIter>
+        void copy_assign(FIter first, FIter last, forward_iterator_tag);
+
+        // insert  插入
+        template<class... Args>
+        iterator insert_aux(iterator position, Args &&...args);
+
+        void fill_insert(iterator position, size_type n, const value_type &x);
+
+        template<class FIter>
+        void copy_insert(iterator, FIter, FIter, size_type);
+
+        template<class IIter>
+        void insert_dispatch(iterator, IIter, IIter, input_iterator_tag);
+
+        template<class FIter>
+        void insert_dispatch(iterator, FIter, FIter, forward_iterator_tag);
+
+        // reallocate  重新分配
+        void require_capacity(size_type n, bool front);
+
+        void reallocate_map_at_front(size_type need);
+
+        void reallocate_map_at_back(size_type need)
+
     };
+
+/*****************************************************************************************/
+
+// 复制赋值运算符
+    template<class T>
+    deque<T> &deque<T>::operator=(const deque &rhs) {
+        if (this != &rhs) {
+            // 若当前地址不等于rhs的地址
+            const auto len = size();  // 记录当前空间大小
+            if (len >= rhs.size()) {
+                // 若当前空间大小大于等于rhs的空间大小
+                // 复制rhs到当前begin_开始的位置，并将复制后的结束位置到当前的end_的元素擦除
+                erase(mystl::copy(rhs.begin_, rhs.end_, begin_), end_);
+            } else {
+                // 若当前空间大小小于rhs的空间大小
+                // 记录rhs与当前空间大小一样长的位置
+                iterator mid = rhs.begin() + static_cast<difference_type>(len);
+                // 先将和当前空间大小长度一致的位置复制到从当前空间begin_开始的地方
+                mystl::copy(rhs.begin_, mid, begin_);
+                // 剩余元素通过insert插入在后面
+                insert(end_, mid, rhs.end_);
+            }
+        }
+        return *this;
+    }
+
+// 移动赋值运算符
+// 将rhs移动到当前deque地址下
+    template<class T>
+    deque<T> &deque<T>::operator=(deque<T> &&rhs) {
+        clear(); // 清空当前deque
+        // 更新各参数
+        begin_ = mystl::move(rhs.begin_);
+        end_ = mystl::move(rhs.end_);
+        map_ = rhs.map_;
+        map_size_ = rhs.map_size_;
+        // 将原rhs置为空
+        rhs.map_ = nullptr;
+        rhs.map_size_ = 0;
+        return *this;
+    }
+
+// 重置容器大小
+    template<class T>
+    void deque<T>::resize(size_type new_size, const value_type &value) {
+        const auto len = size();  // 获取当前容量
+        if (new_size < len) {
+            // 若当前容量大于新容量
+            // 擦除新容量后的元素
+            erase(begin_ + new_size, end_);
+        } else {
+            // 若当前容量小于新容量
+            // 在结尾后面插入new_size - len个value进行填充至新容量大小
+            insert(end_, new_size - len, value);
+        }
+    }
+
+// 减小容器容量
+    template<class T>
+    void deque<T>::shrink_to_fit() noexcept {
+        // 至少会留下头部缓冲区
+        // map_：指向一块map，map中的每个元素都是一个指针，指向一个缓冲区
+        for (auto cur = map_; cur < begin_.node; ++cur) {
+            // 将头节点之前的空间全部清空并置为nullptr
+            data_allocator::deallocate(*cur, buffer_size);
+            *cur = nullptr;
+        }
+        for (auto cur = end_.node; cur < map_ + map_size_; ++cur) {
+            // 将 尾结点之后 且 小于map_指向的map的最后一个位置 内的空间清空并置为nullptr
+            data_allocator::deallocate(*cur, buffer_size);
+            *cur = nullptr;
+        }
+    }
+
+// 在头部就地构建元素
+    template<class T>
+    template<class ...Args>
+    void deque<T>::emplace_front(Args &&...args) {
+        if (begin_.cur != begin_.first) {
+            // 若当前节点不等于头节点
+            // cur 指向所在缓冲区的当前元素
+            // first 指向所在缓冲区的头部
+            // 在当前元素前一个位置构造元素
+            data_allocator::construct(begin_.cur - 1, mystl::forward<Args>(args)...);
+            --begin_.cur; // 将指向的当前元素前移一位指向新构建的元素
+        } else {
+            // 若当前节点等于头节点
+            // 请求一个新的空间
+            require_capacity(1, true);
+            try {
+                --begin_; // 将起始节点前移一位
+                // 在新空间上构建新的元素
+                data_allocator::construct(begin_.cur, mystl::forward<Args>(args)...);
+            }
+            catch (...) {
+                // 若报错则将begin_恢复并抛出
+                ++begin_;
+                throw;
+            }
+        }
+    }
+
 
 } // namespace mystl
 #endif // !MYTINYSTL_DEQUE_H_
