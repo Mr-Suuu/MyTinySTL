@@ -630,6 +630,77 @@ namespace mystl {
         }
     }
 
+// 在尾部就地构造元素
+    template<class T>
+    template<class ...Args>
+    void deque<T>::emplace_back(Args &&args...) {
+        if (end_.cur != end_.last - 1) {
+            // 若当前结尾不等于空间结尾位置，则直接插入
+            data_allocator::construct(end_.cur, mystl::forward<Args>(args)...);
+            ++end_.cur;
+        } else {
+            // 若当前结尾等于空间结尾位置，即空间不足
+            // 则请求一个空间并构建元素插入
+            require_capacity(1, false);  // 这个false是干嘛的？
+            data_allocator::construct(end_.cur, mystl::forward<Args>(args)...);
+            ++end_;
+        }
+    }
+
+// 在pos位置就地构建元素
+    template<class T>
+    template<class ...Args>
+    typename deque<T>::iterator deque<T>::emplace(iterator pos, Args &&args...) {
+        if (pos.cur == begin_.cur) {
+            // 若插入位置等于起始位置，则在头部就地构建元素
+            emplace_front(mystl::forward<Args>(args)...);
+            return begin_;
+        } else if (pos.cur == end_.cur) {
+            // 若插入位置等于结尾位置，则在尾部就地构建元素
+            emplace_back(mystl::forward<Args>(args)...);
+            return end_ - 1;
+        }
+        // 否则则进行对应位置的插入
+        return insert_aux(pos, mystl::forward<Args>(args)...);
+    }
+
+// 在头部插入元素
+// 和emplace_front的区别是这里传入的直接是一个value，不用自己构建
+    template<class T>
+    void deque<T>::push_front(const value_type &value) {
+        if (begin_.cur != begin_.first) {
+            // 若begin_的当前位置不等于begin_缓冲区的开始位置，则在头部插入并将begin_前移一位
+            data_allocator::construct(begin_.cur - 1, value);
+            --begin_.cur;
+        } else {
+            // 若begin_的当前位置等于begin_缓冲区的开始位置，即空间不足，则请求一个空间并插入
+            require_capacity(1, true);
+            try {
+                --begin_;
+                data_allocator::construct(begin_.cur, value);
+            } catch (...) {
+                // 若出错则恢复begin_并抛出错误
+                ++begin_;
+                throw;
+            }
+        }
+    }
+
+// 在尾部插入元素
+    template<class T>
+    void deque<T>::push_back(const value_type &value) {
+        if (end_.cur != end_.last - 1) {
+            // 若空间充足，则直接插入
+            data_allocator::construct(end_.cur, value);
+            ++end_.cur;
+        } else {
+            // 若空间不足，则请求空间并插入
+            require_capacity(1, false);
+            data_allocator::construct(end_.cur, value);
+            ++end_;
+        }
+    }
+
 
 } // namespace mystl
 #endif // !MYTINYSTL_DEQUE_H_
