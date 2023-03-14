@@ -701,6 +701,133 @@ namespace mystl {
         }
     }
 
+// 弹出头部元素
+    template<class T>
+    void deque<T>::pop_front() {
+        MYSTL_DEBUG(!empty());
+        if (begin_.cur != begin_.last - 1) {
+            // 若begin缓冲区当前位置不等于begin缓冲区的结尾位置
+            // 则销毁头部元素，并令begin缓冲区当前位置后移一位，即弹出头部元素
+            data_allocator::destroy(begin_.cur);
+            ++begin_.cur;
+        } else {
+            // 若begin缓冲区当前位置等于begin缓冲区的结尾位置
+            // 则销毁头部元素当前区域，并令begin缓冲区整个后移一位，并销毁原begin缓冲区
+            data_allocator::destroy(begin_.cur);
+            ++begin_;
+            destroy_buffer(begin_.node - 1, begin_.node - 1);
+        }
+    }
+
+// 弹出尾部元素
+    template<class T>
+    void deque<T>::pop_back() {
+        MYSTL_DEBUG(!empty());
+        if (end_.cur != end_.first) {
+            // 若end缓冲区当前位置不等于end缓冲区起始位置
+            // 则先将end缓冲区的cur进行前移（因为end的cur指向的是最后一个元素的后一位？），再销毁
+            --end_.cur;
+            data_allocator::destroy(end_.cur);
+        } else {
+            // 若end缓冲区当前位置等于end缓冲区起始位置
+            // 则将整个end缓冲区进行前移（因为end的cur指向的是最后一个元素的后一位？），再销毁
+            // 最后将原end缓冲区整个销毁
+            --end_;
+            data_allocator::destroy(end_.cur);
+            destroy_buffer(end_.node + 1, end_.node + 1);
+        }
+    }
+
+// 在position处插入元素
+    template<class T>
+    typename deque<T>::iterator
+    deque<T>::insert(iterator position, const value_type &value) {
+        if (position.cur == begin_.cur) {
+            // 若position的当前位置等于begin缓冲区的当前位置
+            // 则直接进行头插法
+            push_front(value);
+            return begin_;  // 返回插入的位置
+        } else if (position.cur == end_.cur) {
+            // 若position的当前位置等于end缓冲区的当前位置
+            // 则直接进行尾插法
+            push_back(value);
+            auto tmp = end_;
+            --tmp;
+            return tmp;  // 返回插入的位置
+        } else {
+            // 若不在首尾则通过aux插入
+            return insert_aux(position, value);
+        }
+    }
+
+    template<class T>
+    typename deque<T>::iterator
+    deque<T>::insert(iterator position, value_type &&value) {
+        // 这个和上面有什么区别？为什么要通过就地构建元素完成？
+        if (position.cur == begin_.cur) {
+            emplace_front(mystl::move(value));
+            return begin_;
+        } else if (position.cur == end_.cur) {
+            emplace_back(mystl::move(value));
+            auto tmp = end_;
+            --tmp;
+            return tmp;
+        } else {
+            return insert_aux(position, mystl::move(value));
+        }
+    }
+
+// 在position位置插入n个元素
+    template<class T>
+    void deque<T>::insert(iterator position, size_type n, const value_type &value) {
+        if (position.cur == begin_.cur) {
+            // 若插入位置在头部
+            // 则在头部申请n个空间
+            require_capacity(n, true);
+            // 更新新的begin
+            auto new_begin = begin_ - n;
+            // 初始化新加入的空间为value
+            mystl::uninitialized_fill_n(new_begin, n, value);
+            begin_ = new_begin;
+        } else if (position.cur == end_.cur) {
+            // 若插入位置在尾部
+            // 则在尾部申请n个空间
+            require_capacity(n, false);
+            // 更新新的end
+            auto new_end = end_ + n;
+            // 初始化新加入的空间为value
+            mystl::uninitialized_fill_n(end_, n, value);
+            end_ = new_end;
+        } else {
+            // 若在中间插入，则通过fill_insert完成
+            fill_insert(position, n, value);
+        }
+    }
+
+// 删除position处的元素
+    template<class T>
+    typename deque<T>::iterator
+    deque<T>::erase(iterator position) {
+        auto next = position;  // 记录position位置
+        ++next;  // 移动到position后一位
+        const size_type elems_before = position - begin_;  // 记录在position之前有几个元素
+        if (elems_before < (size() / 2)) {
+            // 若position前元素个数小于整体元素个数的一半
+            // 将[begin, position)之间的元素复制到以next结尾的地方
+            mystl::copy_backward(begin_, position, next);
+            // 弹出首元素（因为多余，首元素在第二个位置复制得到过）
+            pop_front();
+        } else {
+            // 若position前的元素大于整体元素的一半
+            // 则复制[next, end_)之间的元素到以position开头的地方
+            mystl::copy(next, end_, position);
+            // 弹出为元素
+            pop_back();
+        }
+        // 返回弹出的位置
+        return begin_ + elems_before;
+    }
+
 
 } // namespace mystl
 #endif // !MYTINYSTL_DEQUE_H_
