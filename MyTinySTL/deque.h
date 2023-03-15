@@ -828,6 +828,75 @@ namespace mystl {
         return begin_ + elems_before;
     }
 
+// 删除[first, last)上的元素
+    template<class T>
+    typename deque<T>::iterator
+    deque<T>::erase(iterator first, iterator last) {
+        if (first == begin_ && last == end_) {
+            // 若清除的范围刚好是整个空间，则直接clear并返回结束位置
+            clear();
+            return end_;
+        } else {
+            // 若清除的范围不是整个空间
+            // 计算删除的长度
+            const size_type len = last - first;
+            // 计算第一个删除的元素距离起始位置的距离
+            const size_type elems_before = first - begin_;
+            // 这个if else的目的是为了移动更少的元素
+            if (elems_before < ((size() - len) / 2)) {
+                // 若[begin_, first)之间的元素少于[last, end_]之间的元素
+                // 复制[begin_, first)之间的元素到以last结尾的位置
+                mystl::copy_backward(begin_, first, last);
+                // 定义新的起始位置
+                auto new_begin = begin_ + len;
+                // 销毁[begin, new_begin]之间的数据
+                data_allocator::destroy(begin_.cur, new_begin.cur);
+                // 更新起始位置
+                begin_ = new_begin;
+            } else {
+                // 若 第一个删除的元素距离起始位置的距离 大于
+                // 复制[last, end_]之间的元素到以first起始的位置
+                mystl::copy(last, end_, first);
+                // 定义新的结束位置
+                auto new_end = end_ - len;
+                // 销毁新的结束位置到旧的结束位置之间的数据
+                data_allocator::destroy(new_end.cur, end_.cur);
+                // 更新结束位置
+                end_ = new_end;
+            }
+            return begin_ + elems_before;
+        }
+    }
+
+// 清空 deque
+    template<class T>
+    void deque<T>::clear() {
+        // clear 会保留头部的缓冲区
+        for (map_pointer cur = begin_.node + 1; cur < end_.node; ++cur) {
+            data_allocator::destroy(*cur, *cur + buffer_size);
+        }
+        if (begin_.node != end_.node) {
+            // 有两个以上的缓冲区
+            mystl::destroy(begin_.cur, begin_.last);
+            mystl::destroy(end_.first, end_.cur);
+        } else {
+            mystl::destroy(begin_.cur, end_.cur);
+        }
+        shrink_to_fit();
+        end_ = begin_;
+    }
+
+// 交换两个deque
+    template<class T>
+    void deque<T>::swap(deque<T> &rhs) noexcept {
+        if (this != &rhs) {
+            // 交换两个不相等的deuqe的全部信息
+            mystl::swap(begin_, rhs.begin_);
+            mystl::swap(end_, rhs.end_);
+            mystl::swap(map_, rhs.map_);
+            mystl::swap(map_size_, rhs.map_size_);
+        }
+    }
 
 } // namespace mystl
 #endif // !MYTINYSTL_DEQUE_H_
