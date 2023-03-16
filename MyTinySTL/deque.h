@@ -486,12 +486,12 @@ namespace mystl {
         void destroy_buffer(map_pointer nstart, map_pointer nfinish);
 
         // initialize  初始化
-        void map_init(size_type nelem);
+        void map_init(size_type nElem);
 
         void fill_init(size_type n, const value_type &value);
 
         template<class IIter>
-        void copy_init(IIter, IIter, input_iterator_tag);
+        void copy_init(IIter first, IIter last, input_iterator_tag);
 
         template<class FIter>
         void copy_init(FIter, FIter, forward_iterator_tag);
@@ -873,16 +873,21 @@ namespace mystl {
     void deque<T>::clear() {
         // clear 会保留头部的缓冲区
         for (map_pointer cur = begin_.node + 1; cur < end_.node; ++cur) {
+            // 从头部下一个开始销毁到结束缓冲区之前
             data_allocator::destroy(*cur, *cur + buffer_size);
         }
         if (begin_.node != end_.node) {
             // 有两个以上的缓冲区
+            // 分别销毁
             mystl::destroy(begin_.cur, begin_.last);
             mystl::destroy(end_.first, end_.cur);
         } else {
+            // 若头部等于尾部，则一起销毁
             mystl::destroy(begin_.cur, end_.cur);
         }
+        // 减小容器容量
         shrink_to_fit();
+        // 更新结束位置
         end_ = begin_;
     }
 
@@ -897,6 +902,123 @@ namespace mystl {
             mystl::swap(map_size_, rhs.map_size_);
         }
     }
+
+/**************************************************************************************************/
+// helper function
+
+// create_map 函数
+    template<class T>
+    typename deque<T>::map_pointer
+    deque<T>::create_map(size_type size) {
+        map_pointer mp = nullptr;  // 创建一个map指针
+        mp = map_allocator::allocate(size);  // mp指向构建为size大小的map
+        for (size_type i = 0; i < size; ++i) {
+            // map中全部指向空
+            *(mp + i) = nullptr;
+        }
+        return mp;
+    }
+
+// create_buffer 函数
+    template<class T>
+    void deque<T>::
+    create_buffer(map_pointer nstart, map_pointer nfinish) {
+        map_pointer cur;
+        try {
+            for (cur = nstart; cur <= nfinish; ++cur) {
+                // 在每一个map指针中构建buffer
+                *cur = data_allocator::allocate(buffer_size);
+            }
+        } catch (...) {
+            // 若出现异常则全部操作销毁
+            while (cur != nstart) {
+                --cur;
+                data_allocator::deallocate(*cur, buffer_size);
+                *cur = nullptr;
+            }
+            throw;
+        }
+    }
+
+// destroy_buffer 函数
+    template<class T>
+    void deque<T>::
+    destroy_buffer(map_pointer nstart, map_pointer nfinish) {
+        for (map_pointer n = nstart; n <= nfinish; ++n) {
+            // 释放当前buffer的内存空间
+            data_allocator::deallocate(*n, buffer_size);
+            // 将指针置为空
+            *n = nullptr;
+        }
+    }
+
+// map_init 函数
+    template<class T>
+    void deque<T>::
+    map_init(size_type nElem) {
+        const size_type nNode = nElem / buffer_size + 1; // 需要分配的缓冲区个数
+        // 设置 map_size_为固定的初始化大小 和 当前要求分配的缓冲区个数+2 中取最大
+        map_size_ = mystl::max(static_cast<size_type>(DEQUE_MAP_INIT_SIZE), nNode + 2);
+        try {
+            // 创建map
+            map_ = create_map(map_size_);
+        } catch (...) {
+            // 若出错则销毁map并抛出异常
+            map_ = nullptr;
+            map_size_ = 0;
+            throw;
+        }
+
+        // 让 nstart 和 nfinish 都指向 map_ 最中央的区域，方便向头尾扩充
+        map_pointer nstart = map_ + (map_size_ - nNode) / 2;
+        map_pointer nfinish = nstart + nNode - 1;
+        try {
+            // 创建buffer
+            create_buffer(nstart, nfinish);
+        } catch (...) {
+            // 若出错则销毁
+            map_allocator::deallocate(map_, map_size_);
+            map_ = nullptr;
+            map_size_ = 0;
+            throw;
+        }
+        // 更新各个参数
+        begin_.set_node(nstart);
+        end_.set_node(nfinish);
+        begin_.cur = begin_.first;
+        end_.cur = end_.first + (nElem % buffer_size);
+    }
+
+// fill_init 函数
+// 初始化并填充n个value
+    template<class T>
+    void deque<T>::
+    fill_init(size_type n, const value_type &value) {
+        map_init(n);  // 初始化n个空间
+        if (n != 0){
+            for(auto cur = begin_.node; cur < end_.node; ++cur) {
+                // 将每一个buffer填充为value
+                mystl::uninitialized_fill(*cur, *cur + buffer_size, value);
+            }
+            // 清空end_中的数据？
+            mystl::uninitialized_fill(end_.first, end_.cur, value);
+        }
+    }
+
+// copy_init 函数
+// 初始化并复制[first, last)之间的元素
+    template<class T>
+    template<class IIter>
+    void deque<T>::
+    copy_init(IIter first, IIter last, input_iterator_tag) {
+        const size_type n = mystl::distance(first, last);  // 计算有多少个元素
+        map_init(n);  // 初始化n个空间
+        for (; first != last ; ++first) {
+            // 使用尾插法原地构建元素
+            emplace_back(*first);
+        }
+    }
+
 
 } // namespace mystl
 #endif // !MYTINYSTL_DEQUE_H_
