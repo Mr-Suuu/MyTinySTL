@@ -995,8 +995,8 @@ namespace mystl {
     void deque<T>::
     fill_init(size_type n, const value_type &value) {
         map_init(n);  // 初始化n个空间
-        if (n != 0){
-            for(auto cur = begin_.node; cur < end_.node; ++cur) {
+        if (n != 0) {
+            for (auto cur = begin_.node; cur < end_.node; ++cur) {
                 // 将每一个buffer填充为value
                 mystl::uninitialized_fill(*cur, *cur + buffer_size, value);
             }
@@ -1013,9 +1013,54 @@ namespace mystl {
     copy_init(IIter first, IIter last, input_iterator_tag) {
         const size_type n = mystl::distance(first, last);  // 计算有多少个元素
         map_init(n);  // 初始化n个空间
-        for (; first != last ; ++first) {
+        for (; first != last; ++first) {
             // 使用尾插法原地构建元素
             emplace_back(*first);
+        }
+    }
+
+    template<class T>
+    template<class FIter>
+    void deque<T>::
+    copy_init(IIter first, IIter last, forward_iterator_tag) {
+        const size_type n = mystl::distance(first, last);
+        map_init(n);
+        for (auto cur = begin_.node; cur < end_.node; ++cur) {
+            auto next = first;
+            mystl::advance(next, buffer_size);
+            mystl::uninitialized_copy(first, next, *cur);
+            first = next;
+        }
+        mystl::uninitialized_copy(first, last, end_.first);
+    }
+
+// fill_assign 函数
+    template<class T>
+    void deque<T>::
+    fill_assign(size_type n, const value_type &value) {
+        if (n > size()) {
+            mystl::fill(begin(), end(), value);
+            insert(end(), n - size(), value);
+        } else {
+            erase(begin() + n, end());
+            mystl::fill(begin(), end(), value);
+        }
+    }
+
+// copy_assign 函数
+    template<class T>
+    template<class IIter>
+    void deque<T>::
+    copy_assign(FIter first, FIter last, input_iterator_tag) {
+        auto first1 = begin();
+        auto last1 = end();
+        for (; first != last && first1 != last1; ++first, ++first1) {
+            *first1 = *first;
+        }
+        if (first1 != last1) {
+            erase(first1, last1);
+        } else {
+            insert_dispatch(end_, first, last, input_iterator_tag{});
         }
     }
 
