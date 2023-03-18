@@ -509,7 +509,7 @@ namespace mystl {
         template<class... Args>
         iterator insert_aux(iterator position, Args &&...args);
 
-        void fill_insert(iterator position, size_type n, const value_type &x);
+        void fill_insert(iterator position, size_type n, const value_type &value);
 
         template<class FIter>
         void copy_insert(iterator, FIter, FIter, size_type);
@@ -1023,13 +1023,13 @@ namespace mystl {
     template<class FIter>
     void deque<T>::
     copy_init(IIter first, IIter last, forward_iterator_tag) {
-        const size_type n = mystl::distance(first, last);
-        map_init(n);
+        const size_type n = mystl::distance(first, last);  // 计算距离
+        map_init(n);  // 初始化map
         for (auto cur = begin_.node; cur < end_.node; ++cur) {
             auto next = first;
-            mystl::advance(next, buffer_size);
-            mystl::uninitialized_copy(first, next, *cur);
-            first = next;
+            mystl::advance(next, buffer_size);  // 前进buffer_size
+            mystl::uninitialized_copy(first, next, *cur);  // 赋值初始化
+            first = next;  // 将first后移
         }
         mystl::uninitialized_copy(first, last, end_.first);
     }
@@ -1039,10 +1039,15 @@ namespace mystl {
     void deque<T>::
     fill_assign(size_type n, const value_type &value) {
         if (n > size()) {
+            // 若n大于当前空间大小
+            // 则先全部填充
             mystl::fill(begin(), end(), value);
+            // 再在后面插入
             insert(end(), n - size(), value);
         } else {
+            // 否则擦去多余空间
             erase(begin() + n, end());
+            // 填充value
             mystl::fill(begin(), end(), value);
         }
     }
@@ -1051,16 +1056,134 @@ namespace mystl {
     template<class T>
     template<class IIter>
     void deque<T>::
-    copy_assign(FIter first, FIter last, input_iterator_tag) {
+    copy_assign(IIter first, IIter last, input_iterator_tag) {
+        // 记录下当前空间的begin和end的位置
         auto first1 = begin();
         auto last1 = end();
         for (; first != last && first1 != last1; ++first, ++first1) {
+            // 移动first1
             *first1 = *first;
         }
         if (first1 != last1) {
+            // 擦去[first1, last1]即[first1, end]的元素
             erase(first1, last1);
         } else {
+            // 这是干嘛的？
             insert_dispatch(end_, first, last, input_iterator_tag{});
+        }
+    }
+
+    template<class T>
+    template<class FIter>
+    void deque<T>::
+    copy_assign(FIter first, FIter last, forward_iterator_tag) {
+        const size_type len1 = size();  // 当前尺寸
+        const size_type len2 = mystl::distance(first, last);  // 计算距离
+        if (len1 < len2) {
+            // 若当前空间小于要复制的空间
+            auto next = first;
+            mystl::advance(next, len1);  // 后移len1位
+            mystl::copy(first, next, begin_);  // 复制[first, next]到begin_开头的位置
+            // 这个dispatch是干嘛的？
+            insert_dispatch(end_, next, last, forward_iterator_tag{});
+        } else {
+            // 若当前空间更大
+            // 则直接复制到以begin开头的位置并将last后的元素删除
+            erase(mystl::copy(first, last, begin_), end_);
+        }
+    }
+
+// insert_aux 函数
+    template<class T>
+    template<class... Args>
+    typename deque<T>::iterator
+    deque<T>::
+    insert_aux(iterator position, Args &&args...) {
+        const size_type elems_before = position - begin_;  // 计算插入位置前有几个元素
+        value_type value_copy = value_type(mystl::forward<Args>(args)...);
+        if (elems_before < (size() / 2)) {
+            // 在前半段插入
+            // 为什么都要++？
+            emplace_front(front());  // 在开头原地构造元素
+            auto front1 = begin_;
+            ++front1;
+            auto front2 = front1;
+            ++front2;
+            position = begin_ + elems_before;
+            auto pos = position;
+            ++pos;
+            // 复制[front2, pos)到以front1开头的位置
+            mystl::copy(front2, pos, front1);
+        } else {
+            // 在后半段插入
+            // 与上面原理类似
+            emplace_back(back());
+            auto back1 = end_;
+            --back1;
+            auto back2 = back1;
+            --back2;
+            popsition = begin_ + elems_before;
+            mystl::copy_backward(position, back2, back1);
+        }
+        *position = mystl::move(value_copy);
+        return position;
+    }
+
+// fill_insert 函数
+    template<class T>
+    void deque<T>::
+    fill_insert(iterator position, size_type n, const value_type &value) {
+        const size_type elems_before = position - begin_;
+        const size_type len = size();
+        auto value_copy = value;
+        if (elems_before < (len < 2)) {
+            require_capacity(n, true);  // 在开头请求空间
+            // 原来的迭代器可能会失效
+            auto old_begin = begin_;
+            auto new_begin = begin_ + n;
+            position = begin_ + elems_before;
+            try {
+                if (elems_before >= n) {
+                    auto begin_n = begin_ + n;
+                    mystl::uninitialized_copy(begin_, begin_n, new_begin);
+                    begin_ = new_begin;
+                    mystl::copy(begin_n, position, old_begin);
+                    mystl::fill(position - n, position, value_copy);
+                } else {
+                    mystl::uninitialized_fill(mystl::uninitialized_copy(begin_, position, new_begin), begin_,
+                                              value_copy);
+                    begin_ = new_begin;
+                    mystl::fill(old_begin, position, value_copy);
+                }
+            } catch (...) {
+                if (new_begin.node != begin_.node) {
+                    destroy_buffer(new_begin.node, begin_.node - 1);
+                    throw;
+                }
+            }
+        } else {
+            require_capacity(n, false);
+            // 原来的迭代器可能会失效
+            auto old_end = end_;
+            auto new_end = end_ + n;
+            const size_type elems_after = len - elems_before;
+            position = end_ - elems_after;
+            try {
+                if (elems_after > n) {
+                    auto end_n = end_ - n;
+                    mystl::uninitialized_copy(end_n, end_, end_);
+                    end_ = new_end;
+                    mystl::copy_backward(position, end_n, end_);
+                    end_ = new_end;
+                    mystl::copy_backward(position, end_n, old_end);
+                    mystl::fill(position, position + n, value_copy);
+                }
+            } catch (...) {
+                if (new_end.node != end_.node) {
+                    destroy_buffer(end_.node + 1, new_end.node);
+                }
+                throw;
+            }
         }
     }
 
