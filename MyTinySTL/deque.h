@@ -1339,6 +1339,114 @@ namespace mystl {
         }
     }
 
+// reallocate_map_at_front 函数
+    template<class T>
+    void deque<T>::reallocate_map_at_front(size_type need_buffer) {
+        // 判断并获得需要增加的map数量
+        const size_type new_map_size = mystl::max(map_size_ << 1, map_size_ + need_buffer + DEQUE_MAP_INIT_SIZE);
+        // 创建map
+        map_pointer new_map = create_map(new_map_size);
+        // 记录旧的buffer大小
+        const size_type old_buffer = end_.node - begin_.node + 1;
+        // 计算新的buffer大小
+        const size_type new_buffer = old_buffer + need_buffer;
+
+        // 令新的map中的指针指向原来的buffer，并开辟新的buffer
+        auto begin = new_map + (new_map_size - new_buffer) / 2;  // 指向新的起始位置
+        auto mid = begin + new_buffer;  // 指向原buffer的位置
+        auto end = mid + old_buffer;  // 指向整个buffer的结尾
+        // 在mid前记原空间数据前创建buffer
+        create_buffer(begin, mid - 1);
+        for (auto begin1 = mid, begin2 = begin_.node; begin1 != end; ++begin1, ++begin2) {
+            // 将旧的buffer中的数据转移到新的buffer中，以mid为起始位置
+            *begin1 = *begin2;
+        }
+
+        // 更新数据
+        map_allocator::deallocate(map_, map_size_);
+        map_ = new_map;
+        map_size_ = new_map_size;
+        begin_ = iterator(*mid + (begin_.cur - begin_.first), mid);
+        end_ = iterator(*(end - 1) + (end_.cur - end_.first), end - 1);
+    }
+
+// reallocate_map_at_back 函数
+    template<class T>
+    void deque<T>::reallocate_map_at_back(size_type need_buffer) {
+        // 获得应该增加的map大小
+        const size_type new_map_size = mystl::max(map_size_ << 1, map_size_ + need_buffer + DEQUE_MAP_INIT_SIZE);
+        // 创建新的map
+        map_pointer new_map = create_map(new_map_size);
+        // 记录旧的buffer空间大小
+        const size_type old_buffer = end_.node - begin_.node + 1;
+        // 计算新的buffer大小
+        const size_type new_buffer = old_buffer + need_buffer;
+
+        // 令新的map中的指针指向原来的buffer，并开辟新的buffer
+        // 计算新的起始位置
+        auto begin = new_map + ((new_map_size - new_buffer) / 2);
+        // 计算旧的空间的起始位置
+        auto mid = begin + old_buffer;
+        // 计算结尾位置
+        auto end = mid + need_buffer;
+        for (auto begin1 = begin, begin2 = begin_.node; begin1 != mid; ++begin1, ++begin2) {
+            // 将旧空间的数据赋值给新空间对应位置，以mid为结束位置
+            *begin1 = *begin2;
+        }
+
+        // 在mid后创建buffer
+        create_buffer(mid, end - 1);
+
+        // 更新数据
+        map_allocator::deallocate(map_, map_size_);
+        map_ = new_map;
+        map_size_ = new_map_size;
+        begin_ = iterator(*begin + (begin_.cur - begin_.first), begin);
+        end_ = iterator(*(mid - 1) + (end_.cur - end_.first), mid - 1);
+    }
+
+// 重载比较操作符
+    template<class T>
+    bool operator==(const deque<T> &lhs, const deque<T> &rhs) {
+        // 比较空间大小和值是否相等
+        return lhs.size() == rhs.size() &&
+               mystl::equal(lhs.begin(), lhs.end(), rhs.begin());
+    }
+
+    template<class T>
+    bool operator<(const deque<T> &lhs, const deque<T> &rhs) {
+        //     检查第一个范围 [lhs.begin(), lhs.end()) 是否按字典序小于
+        //        第二个范围 [rhs.begin(), rhs.begin() + (lhs.end() - lhs.begin()))
+        return mystl::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+    }
+
+    template<class T>
+    bool operator!=(const deque<T> &lhs, const deque<T> &rhs) {
+        // 利用重载的==实现
+        return !(lhs == rhs);
+    }
+
+    template<class T>
+    bool operator>(const deque<T> &lhs, const deque<T> &rhs) {
+        return rhs < lhs;
+    }
+
+    template<class T>
+    bool operator<=(const deque<T> &lhs, const deque<T> &rhs) {
+        return !(rhs < lhs);
+    }
+
+    template<class T>
+    bool operator>=(const deque<T> &lhs, const deque<T> &rhs) {
+        return !(lhs < rhs);
+    }
+
+// 重载 mystl 的 swap 函数
+    template<class T>
+    void swap(deque<T> &lhs, deque<T> &rhs) {
+        lhs.swap(rhs);
+    }
+
 } // namespace mystl
 #endif // !MYTINYSTL_DEQUE_H_
 
