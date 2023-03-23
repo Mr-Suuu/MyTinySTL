@@ -238,7 +238,103 @@ namespace mystl {
                 : c_(mystl::move(rhs.c_)), comp_(rhs.comp_) {
             mystl::make_heap(c_.begin(), c_.end(), comp_);
         }
+
+        priority_queue &operator=(const priority_queue &rhs) {
+            c_ = rhs.c_;
+            comp_ = rhs.comp_;
+            // make_heap：在容器范围内，就地建堆，保证最大值在所给范围的最前面，其他值的位置不确定
+            mystl::make_heap(c_.begin(), c_.end(), comp_);
+            return *this;
+        }
+
+        priority_queue &operator=(priority_queue &&rhs) {
+            c_ = mystl::move(rhs.c_);
+            comp_ = rhs.comp_;
+            mystl::make_heap(c_.begin(), c_.end(), comp_);
+            return *this;
+        }
+
+        priority_queue &operator=(std::initializer_list<T> ilist) {
+            c_ = ilist;
+            comp_ = value_compare();
+            mystl::make_heap(c_.begin(), c_.end(), comp_);
+            return *this;
+        }
+
+        ~priority_queue() = default;
+
+    public:
+
+        // 访问元素相关操作
+        const_reference top() const { return c_.front(); }
+
+        // 容量相关操作
+        bool empty() const noexcept { return c_.empty(); }
+
+        size_type size() const noexcept { return c_.size(); }
+
+        // 修改容器相关操作
+
+        // 用于在队列容器中插入或放置新元素
+        template<class... Args>
+        void emplace(Args &&...args) {
+            // 调用deque的方法：在双端队列的后面插入新元素并将双端队列的大小增加一
+            c_.emplace_back(mystl::forward<Args>(args)...);
+            mystl::push_heap(c_.begin(), c_.end(), comp_);
+        }
+
+        void push(const value_type &value) {
+            c_.push_back(mystl::move(value));
+            mystl::push_heap(c_.begin(), c_.end(), comp_);
+        }
+
+        void pop() {
+            mystl::pop_heap(c_.begin(), c_.end(), comp_);
+            c_.pop_back();
+        }
+
+        void clear() {
+            while (!empty()) {
+                pop();
+            }
+        }
+
+        void swap(priority_queue &rhs) noexcept(noexcept(mystl::swap(c_, rhs.c_)) &&
+                                                noexcept(mystl::swap(comp_, rhs.comp_))) {
+            mystl::swap(c_, rhs.c_);
+            mystl::swap(comp_, rhs.comp_);
+        }
+
+    public:
+        friend bool operator==(const priority_queue &lhs, const priority_queue &rhs) {
+            return lhs.c_ == rhs.c_;
+        }
+
+        friend bool operator!=(const priority_queue &lhs, const priority_queue &rhs) {
+            return lhs.c_ != rhs.c_;
+        }
     };
+
+// 重载比较操作符
+    template<class T, class Container, class Compare>
+    bool operator==(priority_queue<T, Container, Compare> &lhs,
+                    priority_queue<T, Container, Compare> &rhs) {
+        return lhs == rhs;
+    }
+
+    template<class T, class Container, class Compare>
+    bool operator!=(priority_queue<T, Container, Compare> &lhs,
+                    priority_queue<T, Container, Compare> &rhs) {
+        return lhs != rhs;
+    }
+
+// 重载 mystl 的 swap
+    template<class T, class Container, class Compare>
+    void swap(priority_queue<T, Container, Compare> &lhs,
+              priority_queue<T, Container, Compare> &rhs)
+    noexcept(noexcept(lhs.swap(rhs))) {
+        lhs.swap(rhs);
+    }
 
 } // namespace mystl
 #endif // !MYTINYSTL_QUEUE_H_
