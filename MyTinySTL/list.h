@@ -251,8 +251,7 @@ namespace mystl {
         list(size_type n, const T &value) { fill_init(n, value); }
 
         // 通过迭代器构造
-        template<class Iter, typename std::enable_if<
-                mystl::is_input_iterator<Iter>::value, int>::type = 0>
+        template<class Iter, typename std::enable_if<mystl::is_input_iterator<Iter>::value, int>::type = 0>
         list(Iter first, Iter last) { copy_init(first, last); }
 
         // 根据初始化的列表进行构造
@@ -340,6 +339,47 @@ namespace mystl {
 
         // 返回最大容量，为什么是-1？
         size_type max_size() const noexcept { return static_cast<size_type>(-1); }
+
+        // 访问元素相关操作
+        reference front() {
+            MYSTL_DEBUG(!empty());
+            return *begin();
+        }
+
+        const_reference front() const {
+            MYSTL_DEBUG(!empty());
+            return *begin();
+        }
+
+        reference back() {
+            MYSTL_DEBUG(!empty());
+            return *(--end());
+        }
+
+        const_reference back() const {
+            MYSTL_DEBUG(!empty());
+            return *(--end());
+        }
+
+        // 调整容器相关操作
+        // assign
+        void assign(size_type n, const value_type &value) { fill_assign(n, value); }
+
+        template<class Iter, typename std::enable_if<
+                mystl::is_input_iterator<Iter>::value, int>::type = 0>
+        void assign(Iter first, Iter last) { copy_assign(first, last); }
+
+        void assign(std::initializer_list<T> ilist) { copy_assign(ilist.begin(), ilist.end()); }
+
+        // emplace_front / emplace_back / emplace
+        template<class ...Args>
+        void emplace_front(Args&&...args) {
+            THROW_LENGTH_ERROR_IF(size_ > max_size() - 1, "list<T>'s size too big");
+            auto link_node = create_node(mystl::forward<Args>(args)...);
+            link_nodes_at_front(link_node->as_base(), link_node->as_base());
+            ++size_;
+        }
+    }
 
 
     } // namespace mystl
