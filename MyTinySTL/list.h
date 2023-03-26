@@ -302,17 +302,46 @@ namespace mystl {
             }
         }
 
+
     public:
         // 迭代器相关操作
+        // 是循环？node_指向末尾节点，因此begin就是node_->next
+        iterator begin() noexcept { return node_->next; }
+
+        const_iterator begin() const noexcept { return node_->next; }
+
+        iterator end() noexcept { return node_; }
+
+        const_iterator end() const noexcept { return node_; }
+
+        // reverse_iterator：反向迭代器适配器，常用来对容器进行反向遍历，即从容器中存储的最后一个元素开始，一直遍历到第一个元素
+        // 反向调用end就是rbegin()
+        reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
+
+        const_reverse_iterator rbegin() const noexcept { return reverse_iterator(end()); }
+
+        reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
+
+        const_reverse_iterator rend() const noexcept { return reverse_iterator(begin()); }
+
+        const_iterator cbegin() const noexcept { return begin(); }
+
+        const_iterator cend() const noexcept { return end(); }
+
+        const_reverse_iterator crbegin() const noexcept { return rbegin(); }
+
+        const_reverse_iterator crend() const noexcept { return rend(); }
+
+        // 容量相关操作
+        // 若当前节点的下一个还是当前节点即为空
+        bool empty() const noexcept { return node_->next == node_; }
+
+        size_type size() const noexcept { return size_; }
+
+        // 返回最大容量，为什么是-1？
+        size_type max_size() const noexcept { return static_cast<size_type>(-1); }
 
 
-
-
-
-
-    };
-
-
-} // namespace mystl
+    } // namespace mystl
 #endif // !MYTINYSTL_LIST_H_
 
