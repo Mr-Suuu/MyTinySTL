@@ -649,6 +649,172 @@ namespace mystl {
         }
     }
 
+// 将 list x 接合于 pos 之前
+    template<class T>
+    void list<T>::splice(const_iterator pos, list &x) {
+        MYSTL_DEBUG(this != &x);
+        if (!x.empty()) {
+            THROW_LENGTH_ERROR_IF(size_ > max_size() - x.size_, "list<T>'s size too big");
+
+            // 找到 x 的起始和结束位置
+            auto f = x.node_->next;
+            auto l = x.node_.prev;
+
+            // 断开连接？
+            x.unlink_nodes(f, l);
+            // pos.node_ 指向 pos 的当前节点
+            // 将f到l之间的元素连接到 pos 的当前节点后面
+            link_nodes(pos.node_, f, l);
+
+            size_ += x.size_;
+            x.size_ = 0;
+        }
+    }
+
+// 将 list x 中 it 所指的节点接合于 pos 之前
+// 这个函数的作用没有搞懂？
+    template<class T>
+    void list<T>::splice(const_iterator pos, list &x, const_iterator it) {
+        if (pos.node_ != it.node_ && pos.node_ != it.node_->next) {
+            THROW_LENGTH_ERROR_IF(size_ > max_size() - x.size_, "list<T>'s size too big");
+
+            auto f = it.node_;
+            // 断开节点
+            x.unlink_nodes(f, f);
+            // 连接节点
+            link_nodes(pos.node_, f, f);
+
+            ++size_;
+            // 将x中的一个节点移走所以--
+            --x.size_;
+        }
+    }
+
+// 将list x的[first, last) 内的节点接合于pos之前
+    template<class T>
+    void list<T>::splice(const_iterator pos, list<T> &x, const_iterator first, const_iterator last) {
+        if (first != last && this != &x) {
+            size_type n = mystl::distance(first, last);
+            THROW_LENGTH_ERROR_IF(size_ > max_size() - x.size_, "list<T>'s size too big");
+            auto f = first.node_;
+            auto l = last.node_->prev;
+
+            x.unlink_nodes(f, l);
+            link_nodes(pos.node_, f, l);
+
+            size_ += n;
+            x.size_ -= n;
+        }
+    }
+
+// 将另一元操作 pred 为 true 的所有元素移除
+    template<class T>
+    template<class UnaryPredicate>
+    void list<T>::remove_if(UnaryPredicate pred) {
+        auto f = begin();  // list的开头
+        auto l = end();   // list的结尾
+        for (auto next = f; f != l; f = next) {
+            ++next;
+            // 将符合判断条件的元素移除
+            if (pred(*f)) {
+                erase(f);
+            }
+        }
+    }
+
+// 移除list中满足perd为true的重复元素
+    template<class T>
+    template<class BinaryPredicate>
+    void list<T>::unique(BinaryPredicate pred) {
+        auto i = begin();
+        auto e = end();
+        auto j = i;
+        ++j;
+        while (j != e) {
+            if (pred(*i, *j)) {
+                erase(j);
+            } else {
+                i = j;
+            }
+            j = i;
+            j++;
+        }
+    }
+
+// 与另一个list合并，按照comp为true的顺序
+    template<class T>
+    template<class Compare>
+    void list<T>::merge(list<T> &x, Compare comp) {
+        if (this != &x) {
+            THROW_LENGTH_ERROR_IF(size_ > max_size() - x.size_, "list<T>'s size too big");
+
+            // 当前的begin和end
+            auto f1 = begin();
+            auto l1 = end();
+            // 另一个list的begin和end
+            auto f2 = x.begin();
+            auto l2 = x.end();
+
+            while (f1 != l1 && f2 != l2) {
+                // 根据comp条件进行判断
+                if (comp(*f2, *f1)) {
+                    // 使comp为true的一段区间
+                    auto next = f2;
+                    ++next;
+                    // 一直移动到不满足comp判断条件为止
+                    for (; next != l2 && comp(*next, *f1); ++next);
+                    auto f = f2.node_;
+                    auto l = next.node_->prev;
+                    f2 = next;
+
+                    // 断开并重新连接节点
+                    x.unlink_nodes(f, l);
+                    link_nodes(f1.node_, f, l);
+                    ++f1;
+                } else {
+                    ++f1;
+                }
+            }
+            // 连接剩余部分
+            if (f2 != l2) {
+                auto f = f2.node_;
+                auto l = l2.node_->prev;
+                x.unlink_nodes(f, l);
+                link_nodes(l1.node_, f, l);
+            }
+
+            size_ += x.size_;
+            x.size_ = 0;
+        }
+    }
+
+// 将 list 反转
+    template<class T>
+    void list<T>::reverse() {
+        if (size_ <= 1) {
+            return;
+        }
+        auto i = begin();
+        auto e = end();
+        while (i.node_ != e.node_) {
+            // 交换当前节点的前后节点
+            mystl::swap(i.node_->prev, i.node_->next);
+            i.node_ = i.node_->prev;
+        }
+        mystl::swap(e.node_->prev, e.node_->next);
+    }
+
+/*****************************************************************************************/
+// helper function
+
+
+
+// 容器与 [first, last] 结点断开连接
+    template<class T>
+    void list<T>::unlink_nodes(base_ptr first, base_ptr last) {
+        first->prev->next = last->next;
+        last->next->prev = first->prev;
+    }
 
 } // namespace mystl
 #endif // !MYTINYSTL_LIST_H_
