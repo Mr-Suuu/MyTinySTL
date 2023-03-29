@@ -955,6 +955,165 @@ namespace mystl {
         }
     }
 
+// 复制 [f2, l2) 为容器赋值
+    template<class T>
+    template<class Iter>
+    void list<T>::copy_assign(Iter f2, Iter l2) {
+        auto f1 = begin();
+        auto l1 = end();
+        for (; f1 != l1 && f2 != l2; ++f1, ++f2) {
+            *f1 = *f2;
+        }
+        if (f2 == l2) {
+            erase(f1, l1);
+        } else {
+            insert(l1, f2, l2);
+        }
+    }
+
+// 在 pos 处插入 n 个元素
+    template<class T>
+    typename list<T>::iterator
+    list<T>::fill_insert(const_iterator pos, size_type n, const value_type &value) {
+        iterator r(pos.node_);  // 创建pos处节点的迭代器
+        if (n != 0) {
+            const auto add_size = n;
+            // 创建value值的节点
+            auto node = create_node(value);
+            node->prev = nullptr;
+            r = iterator(node);
+            iterator end = r;
+            try {
+                // 前面已经创建了一个节点，还需要 n - 1 个
+                for (--n; n > 0; --n, ++end) {
+                    auto next = create_node(value);
+                    end.node_->next = next->as_base();  // 连接节点
+                    next->prev = end.node_;
+                }
+                size_ += add_size;
+            } catch (...) {
+                // 若出错，则从后往前销毁元素并抛出错误
+                auto enode = end.node_;
+                while (true) {
+                    auto prev = enode->prev;
+                    destroy_node(enode->as_node());
+                    if (prev == nullptr) {
+                        break;
+                    }
+                    enode = prev;
+                }
+                throw;
+            }
+            // 将创建好的链表连接上去
+            link_nodes(pos.node_, r.node_, end.node_);
+        }
+        // 返回pos位置的迭代器
+        return r;
+    }
+
+// 在 pos 处插入 first 迭代器起 n 个元素
+    template<class T>
+    template<class Iter>
+    typename list<T>::iterator
+    list<T>::copy_insert(const_iterator pos, size_type n, Iter first) {
+        iterator r(pos.node_);
+        if (n != 0) {
+            const auto add_size = n;
+            auto node = create_node(*first);
+            node->prev = nullptr;
+            r = iterator(node);
+            iterator end = r;
+            try {
+                for (--n, ++first; n > 0; --i, ++first, ++end) {
+                    auto next = create_node(*first);
+                    end.node_->next = next->as_base();  // 连接节点
+                    next->prev = end.node_;
+                }
+                size_ += add_size;
+            } catch (...) {
+                auto enode = end.node_;
+                while (true) {
+                    auto prev = enode->prev;
+                    destroy_node(enode->as_node());
+                    if (prev == nullptr) {
+                        break;
+                    }
+                    enode = prev;
+                }
+                throw;
+            }
+            link_nodes(pos.node_, r.node_, end.node_);
+        }
+        return r;
+    }
+
+// 对 list 进行归并排序，返回一个迭代器指向区间最小元素的位置
+    template<class T>
+    template<class Compared>
+    typename list<T>::iterator
+    list<T>::list_sort(iterator f1, iterator l2, size_type n, Compared comp) {
+        if (n < 2) {
+            return f1;
+        }
+        if (n == 2) {
+            if (comp(*--l2, *f1)) {
+                auto ln = l2.node_;
+                unlink_nodes(ln, ln);
+                link_nodes(f1.node_, ln, ln);
+                return l2;
+            }
+            return f1;
+        }
+
+        auto n2 = n / 2;
+        auto l1 = f1;
+        mystl::advance(l1, n2);
+        auto result = f1 = list_sort(f1, l1, n2, comp);  // 前半段的最小位置
+        auto f2 = l1 = list_sort(l1, l2, n - n2, comp);  // 后半段的最小位置
+
+        // 把较小的一段区间移到前面
+        if (comp(*f2, *f1)) {
+            auto m = f2;
+            ++m;
+            for (; m != l2 && comp(*m, *f1); ++m);
+            auto f = f2.node_;
+            auto l = m.node_->prev;
+            result = f2;
+            l1 = f2 = m;
+            unlink_nodes(f, l);
+            m = f1;
+            ++m;
+            link_nodes(f1.node_, f, l);
+            f1 = m;
+        } else {
+            ++f1;
+        }
+
+        // 合并两段有序区间
+        while (f1 != l1 && f2 != l2) {
+            if (comp(*f2, *f1)) {
+                auto m = f2;
+                ++m;
+                for (; m != l2 && comp(*m, *f1); ++m);
+                auto f = f2.node_;
+                auto l = m.node_->prev;
+                if (l1 == f2) {
+                    l1 = m;
+                }
+                f2 = m;
+                unlink_nodes(f, l);
+                m = f1;
+                ++m;
+                link_nodes(f1.node_, f, l);
+                f1 = m;
+            } else {
+                ++f1;
+            }
+        }
+        return result;
+    }
+
+
 } // namespace mystl
 #endif // !MYTINYSTL_LIST_H_
 
