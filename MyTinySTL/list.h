@@ -807,13 +807,152 @@ namespace mystl {
 /*****************************************************************************************/
 // helper function
 
+// 创建节点
+    template<class T>
+    template<class ...Args>
+    typename list<T>::node_ptr
+    list<T>::create_node(Args &&args...) {
+        // 创建一个节点空间
+        node_ptr p = node_allocator::allocate(1);
+        try {
+            // 构建元素
+            // 获得p->value的地址，然后在此地址上构建数据
+            data_allocator::construct(mystl::address_of(p->value), mystl::forward<Args>(args)...);
+            // 将前后置为空
+            p->prev = nullptr;
+            p->next = nullptr;
+        } catch (...) {
+            // 若出错则销毁并抛出异常
+            node_allocator::deallocate(p);
+            throw;
+        }
+        return p;
+    }
 
+// 销毁节点
+    template<class T>
+    void list<T>::destroy_node(node_ptr p) {
+        // 销毁p->value地址上的数据
+        data_allocator::destroy(mystl::address_of(p->value));
+        // 回收p
+        node_allocator::deallocate(p);
+    }
+
+// 用 n 个元素初始化容器
+    template<class T>
+    void list<T>::fill_init(size_type n, const value_type &value) {
+        // 创建一个节点空间
+        node_ = base_allocator::allocate(1);
+        // unlink
+        node_->unlink();
+        size_ = n;
+        try {
+            for (; n > 0; --n) {
+                // 创建节点
+                auto node = create_node(value);
+                // 连接到尾部
+                // as_base：转换类型为base_ptr
+                link_nodes_at_back(node->as_base(), node->as_base());
+            }
+        } catch (...) {
+            // 出错则清空并抛出异常
+            clear();
+            base_allocator::deallocate(node_);
+            node_ = nullptr;
+            throw;
+        }
+    }
+
+// 以 [first, last) 初始化容器
+    template<class T>
+    template<class Iter>
+    void list<T>::copy_init(Iter first, Iter last) {
+        node_ = base_allocator::allocate(1);
+        node_->unlink();
+        size_type n = mystl::distance(first, last);
+        size_ = n;
+        try {
+            for (; n > 0; --n, ++first) {
+                auto node = create_node(*first);
+                link_nodes_at_back(node->as_base(), node->as_base());
+            }
+        } catch (...) {
+            clear();
+            base_allocator::deallocate(node_);
+            node_ = nullptr;
+            throw;
+        }
+    }
+
+// 在 pos 处连接一个节点
+    template<class T>
+    typename list<T>::iterator
+    list<T>::link_iter_node(const_iterator pos, base_ptr link_node) {
+        if (pos == node_->next) {
+            // 若插入位置在开头，则头插法
+            link_nodes_at_front(link_node, link_node);
+        } else if (pos == node_) {
+            // 若插入位置在尾部，则尾插法
+            link_nodes_at_back(link_node, link_node);
+        } else {
+            // 在中间插入则调用插入元素
+            link_node(pos.node_, link_node, link_node);
+        }
+        // 返回迭代器
+        return iterator(link_node);
+    }
+
+// 在 pos 处连接 [first, last] 的节点
+    template<class T>
+    void list<T>::link_nodes(base_ptr pos, base_ptr first, base_ptr last) {
+        // 注意连接顺序即可
+        pos->prev->next = first;
+        first->prev = pos->prev;
+        pos->prev = last;
+        last->next = pos;
+    }
+
+// 在头部连接 [first, last] 的节点
+    template<class T>
+    void list<T>::link_nodes_at_front(base_ptr first, base_ptr last) {
+        first->prev = node_;
+        last->next = node_->next;
+        last->next - prev = last;
+        node_->next = first;
+    }
+
+// 在尾部连接 [first, last] 节点
+    template<class T>
+    void list<T>::link_nodes_at_back(base_ptr first, base_ptr last) {
+        last->next = node_;
+        first->prev = node_->prev;
+        first->prev->next = first;
+        node_->prev = last;
+    }
 
 // 容器与 [first, last] 结点断开连接
     template<class T>
     void list<T>::unlink_nodes(base_ptr first, base_ptr last) {
         first->prev->next = last->next;
         last->next->prev = first->prev;
+    }
+
+// 用 n 个元素为容器赋值
+    template<class T>
+    void list<T>::fill_assign(size_type n, const value_type &value) {
+        auto i = begin();
+        auto e = end();
+        for (; n > 0 && i != e; --n, ++i) {
+            // 从开头开始为容器赋值
+            *i = value;
+        }
+        if (n > 0) {
+            // 若还不够则在后面插入元素
+            insert(e, n, value);
+        } else {
+            // 若多了则擦除多余元素
+            erase(i, e);
+        }
     }
 
 } // namespace mystl
