@@ -1048,6 +1048,8 @@ namespace mystl {
     }
 
 // 对 list 进行归并排序，返回一个迭代器指向区间最小元素的位置
+// 归并排序：拆分成多个块分别排序，然后合并再排序
+// 这里没搞清楚？
     template<class T>
     template<class Compared>
     typename list<T>::iterator
@@ -1057,6 +1059,7 @@ namespace mystl {
         }
         if (n == 2) {
             if (comp(*--l2, *f1)) {
+                // 若满足则将l2移到l1前
                 auto ln = l2.node_;
                 unlink_nodes(ln, ln);
                 link_nodes(f1.node_, ln, ln);
@@ -1065,9 +1068,11 @@ namespace mystl {
             return f1;
         }
 
+        // 若有多个元素
         auto n2 = n / 2;
         auto l1 = f1;
         mystl::advance(l1, n2);
+        // 拆分成两部分进行排序
         auto result = f1 = list_sort(f1, l1, n2, comp);  // 前半段的最小位置
         auto f2 = l1 = list_sort(l1, l2, n - n2, comp);  // 后半段的最小位置
 
@@ -1112,6 +1117,49 @@ namespace mystl {
         }
         return result;
     }
+
+// 重载比较操作符
+    template<class T>
+    bool operator==(const list<T>& lhs, const list<T>& rhs) {
+        auto f1 = lhs.cbegin();
+        auto f2 = rhs.cbegin();
+        auto l1 = lhs.cend();
+        auto l2 = rhs.cend();
+        for (; f1 != l1 && f2 != l2 && *f1 == *f2; ++f1, ++f2);
+        return f1 == l1 && f2 == l2;
+    }
+
+    template<class T>
+    bool operator<(const list<T> &lhs, const list<T> &rhs) {
+        return mystl::lexicographical_compare(lhs.cbegin(), lhs.cend(), rhs.cbegin(), rhs.cend());
+    }
+
+    template<class T>
+    bool operator!=(const list<T> &lhs, const list<T> &rhs) {
+        return !(lhs == rhs);
+    }
+
+    template<class T>
+    bool operator>(const list<T> &lhs, const list<T> &rhs) {
+        return rhs < lhs;
+    }
+
+    template<class T>
+    bool operator<=(const list<T> &lhs, const list<T> &rhs) {
+        return !(rhs < lhs);
+    }
+
+    template<class T>
+    bool operator>=(const list<T> &lhs, const list<T> &rhs) {
+        return !(lhs < rhs);
+    }
+
+// 重载 mystl 的 swap
+    template<class T>
+    void swap(list<T> &lhs, list<T> &rhs) noexcept {
+        lhs.swap(rhs);
+    }
+
 
 
 } // namespace mystl
