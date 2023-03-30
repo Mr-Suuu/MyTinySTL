@@ -1077,9 +1077,12 @@ namespace mystl {
         auto f2 = l1 = list_sort(l1, l2, n - n2, comp);  // 后半段的最小位置
 
         // 把较小的一段区间移到前面
+        // 目的是加快合并，先将前面一大段移动过去
         if (comp(*f2, *f1)) {
+            // 将后半段比f1小的元素拼接到前半段开头
             auto m = f2;
             ++m;
+            // 找到第一个比f1元素大的位置
             for (; m != l2 && comp(*m, *f1); ++m);
             auto f = f2.node_;
             auto l = m.node_->prev;
