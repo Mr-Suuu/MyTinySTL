@@ -234,6 +234,7 @@ namespace mystl {
     };
 
     // 迭代器派生类
+    // struct 作用与 class 类似，区别是：class 中的成员及函数默认是private，而struct中默认是public
     template<class T>
     struct rb_tree_iterator : public rb_tree_iterator_base<T> {
         typedef rb_tree_traits<T> tree_traits;
@@ -290,6 +291,261 @@ namespace mystl {
             return tmp;
         }
     };
+
+    // const 迭代器派生类
+    template<class T>
+    struct rb_tree_const_iterator : public rb_tree_iterator_base<T> {
+        typedef rb_tree_traits<T> tree_traits;
+
+        typedef typename tree_traits::value_type value_type;
+        typedef typename tree_traits::const_pointer pointer;
+        typedef typename tree_traits::const_reference reference;
+        typedef typename tree_traits::base_ptr base_ptr;
+        typedef typename tree_traits::node_ptr node_ptr;
+
+        typedef rb_tree_iterator<T> iterator;
+        typedef rb_tree_const_iterator<T> const_iterator;
+        typedef const_iterator self;
+
+        using rb_tree_iterator_base<T>::node;
+
+        // 构造函数
+        rb_tree_const_iterator() {}
+
+        rb_tree_const_iterator(base_ptr x) { node = x; }
+
+        rb_tree_const_iterator(node_ptr x) { node = x; }
+
+        rb_tree_const_iterator(const iterator &rhs) { node = rhs.node; }
+
+        rb_tree_const_iterator(const const_iterator &rhs) { node = rhs.node; }
+
+        // 重载操作符
+        reference operator*() const { return node->get_node_ptr()->value; }
+
+        pointer operator->() const { return &(operator*()); }
+
+        self &operator++() {
+            this->inc();
+            return *this;
+        }
+
+        self operator++(int) {
+            self tmp(*this);
+            this->inc();
+            return tmp;
+        }
+
+        self &operator--() {
+            this->dec();
+            return *this;
+        }
+
+        self operator--(int) {
+            self tmp(*this);
+            this->dec();
+            return tmp;
+        }
+    };
+
+// tree algorithm
+
+    template<class NodePtr>
+    NodePtr rb_tree_min(NodePtr x) noexcept {
+        // 找到最左边的节点
+        while (x->left != nullptr) {
+            x = x->left;
+        }
+        return x;
+    }
+
+    template<class NodePtr>
+    NodePtr rb_tree_max(NodePtr x) noexcept {
+        // 找到最右边的节点
+        while (x->right != nullptr) {
+            x = x->right;
+        }
+        return x;
+    }
+
+    // 查看当前节点是否为父节点的左子节点
+    template<class NodePtr>
+    bool rb_tree_is_lchild(NodePtr node) noexcept {
+        return node == node->parent->left;
+    }
+
+    template<class NodePtr>
+    bool rb_tree_is_red(NodePtr node) noexcept {
+        return node->color == rb_tree_red;
+    }
+
+    template<class NodePtr>
+    void rb_tree_set_black(NodePtr node) noexcept {
+        node->color = rb_tree_black;
+    }
+
+    template<class NodePtr>
+    void rb_tree_set_red(NodePtr node) noexcept {
+        node->color = rb_tree_red;
+    }
+
+    // 找到下一个节点
+    template<class NodePtr>
+    NodePtr rb_tree_next(NodePtr node) noexcept {
+        if (node->right != nullptr) {
+            // 若右子树不为空，则右子树最小的元素即为下一个元素
+            return rb_tree_min(node->right);
+        }
+        // 若右子树为空
+        while (!rb_tree_is_lchild(node)) {
+            // 循环判断当前节点是否为左孩子节点，若是则向上找到父节点（画图即可理解）
+            node = node->parent;
+        }
+        // 直至不是左孩子节点则返回
+        return node->parent;
+    }
+
+/*---------------------------------------*\
+|       p                         p       |
+|      / \                       / \      |
+|     x   d    rotate left      y   d     |
+|    / \       ===========>    / \        |
+|   a   y                     x   c       |
+|      / \                   / \          |
+|     b   c                 a   b         |
+\*---------------------------------------*/
+// 左旋，参数一为左旋点，参数二为根节点
+    template<class NodePtr>
+    void rb_tree_rotate_left(NodePtr x, NodePtr &root) noexcept {
+        // 先保存 x 的右子节点
+        auto y = x->right; // y 为 x的右子节点
+        // 将 x 的右子节点的左子树接到x的右节点上
+        x->right = y->left;
+        // 若 y 的左子树不为空
+        if (y->left != nullptr) {
+            // 将左子树的父节点变为x
+            y->left->parent = x;
+        }
+
+        // 令 y 的父节点变为 x 的父节点
+        y->parent = x->parent;
+
+        if (x == root) {
+            // 若x为根节点，让y顶替x成为根节点
+            root = y;
+        } else if (rb_tree_is_lchild(x)) {
+            // 若x是左子节点
+            // 将父节点子树信息更改
+            x->parent->left = y;
+        } else {
+            // 若x是右子节点
+            // 将父节点子树信息更改
+            x->parent->right = y;
+        }
+        // 调整 x 和 y 的关系
+        // 将 x 拼接到 y 左子节点
+        y->left = x;
+        x->parent = y;
+    }
+
+/*----------------------------------------*\
+|     p                         p          |
+|    / \                       / \         |
+|   d   x      rotate right   d   y        |
+|      / \     ===========>      / \       |
+|     y   a                     b   x      |
+|    / \                           / \     |
+|   b   c                         c   a    |
+\*----------------------------------------*/
+// 右旋，参数一为右旋点，参数二为根节点
+    template<class NodePtr>
+    void rb_tree_rotate_right(NodePtr x, NodePtr &root) noexcept {
+        auto y = x->left;
+        x->left = y->right;
+        if (y->right) {
+            y->right->parent = x;
+        }
+        y->parent = x->parent;
+        if (x == root) {
+            root = y;
+        } else if (rb_tree_is_lchild(x)) {
+            x->parent->left = y;
+        } else {
+            x->parent->right = y;
+        }
+        y->right = x;
+        x->parent = y;
+    }
+
+// 插入节点后使 rb tree 重新平衡
+//
+// case 1: 新增节点位于根节点，令新增节点为黑
+// case 2: 新增节点的父节点为黑，没有破坏平衡，直接返回
+// case 3: 父节点和叔叔节点都为红，令父节点和叔叔节点为黑，祖父节点为红，
+//         然后令祖父节点为当前节点，继续处理
+// case 4: 父节点为红，叔叔节点为 NIL 或黑色，父节点为左（右）孩子，当前节点为右（左）孩子，
+//         让父节点成为当前节点，再以当前节点为支点左（右）旋
+// case 5: 父节点为红，叔叔节点为 NIL 或黑色，父节点为左（右）孩子，当前节点为左（右）孩子，
+//         让父节点变为黑色，祖父节点变为红色，以祖父节点为支点右（左）旋
+//
+// 参考博客: http://blog.csdn.net/v_JULY_v/article/details/6105630
+//          http://blog.csdn.net/v_JULY_v/article/details/6109153
+// 参数一为新增节点，参数二为根节点
+    template<class NodePtr>
+    void rb_tree_insert_rebalance(NodePtr x, NodePtr& root) noexcept {
+        rb_tree_set_red(x);  // 新增节点都为红色
+        // 若 新增节点不等于根节点 且 当前节点的父节点为红色（要进行平衡的前提是已经插入）
+        while (x != root && rb_tree_is_red(x->parent)) {
+            if (rb_tree_is_lchild(x->parent)) {
+                // 如果父节点是左子节点
+                auto uncle = x->parent->parent->right;
+                if (uncle != nullptr && rb_tree_is_red(uncle)) {
+                    // case3：父节点和叔叔节点都为红
+                    rb_tree_set_black(x->parent);
+                    rb_tree_set_black(uncle);
+                    x = x->parent->parent;
+                    rb_tree_set_red(x);
+                } else {
+                    // 无叔叔节点或叔叔节点为黑色
+                    if (!rb_tree_is_lchild(x)) {
+                        // case4：当前节点x为右子节点
+                        x = x->parent;
+                        rb_tree_rotate_left(x, root);
+                    }
+                    // 都转成case5：当前节点为左子节点
+                    rb_tree_set_black(x->parent);
+                    rb_tree_set_red(x->parent->parent);
+                    rb_tree_rotate_right(x->parent->parent, root);
+                    break;
+                }
+            } else {
+                // 如果父节点是右子节点，则对称处理
+                auto uncle = x->parent->parent->left;
+                if (uncle != nullptr && rb_tree_is_red(uncle)) {
+                    // case3：父节点和叔叔节点都为红
+                    rb_tree_set_black(x->parent);
+                    rb_tree_set_black(uncle);
+                    x = x->parent->parent;
+                    rb_tree_set_red(x);
+                    // 此时祖父节点为红，可能会破坏红黑树的性质，令当前节点为祖父节点，继续处理
+                } else {
+                    // 无叔叔节点或叔叔节点为黑色
+                    if (rb_tree_is_lchild(x)) {
+                        // case4：当前节点 x 为左子节点
+                        x = x->parent;
+                        rb_tree_rotate_right(x, root);
+                    }
+                    // 都转换成case5：当前节点为左子节点
+                    rb_tree_set_black(x->parent);
+                    rb_tree_set_red(x->parent->parent);
+                    rb_tree_rotate_left(x->parent->parent, root);
+                    break;
+                }
+            }
+        }
+        rb_tree_set_black(root);  // 根节点永远为黑色
+    }
+
 
 
 }
