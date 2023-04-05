@@ -764,6 +764,7 @@ namespace mystl {
 
     private:
         // 以下三个函数用于取得根节点，最小节点和最大节点（为什么能取到最大最小节点？）
+        // 这里的header_的左孩子是最小节点，右孩子是最大节点，父节点指向root
         base_ptr &root() const { return header_->parent; }
 
         base_ptr &leftmost() const { return header_->left; }
@@ -811,7 +812,330 @@ namespace mystl {
         const_reverse_iterator crbegin() const noexcept { return rbegin(); }
 
         const_reverse_iterator crend() const noexcept { return rend(); }
+
+        // 容器相关操作
+        bool empty() const noexcept { return node_count_ == 0; }
+
+        size_type size() const noexcept { return node_count_; }
+
+        // 返回向量可以存储的元素总数
+        size_type max_size() const noexcept { return static_cast<size_type>(-1); }
+
+        // 插入删除相关操作
+        // emplace
+        template<class ...Args>
+        iterator emplace_multi(Args &&...args);
+
+        template<class ...Args>
+        mystl::pair<iterator, bool> emplace_unique(Args &&...args);
+
+        template<class ...Args>
+        iterator emplace_multi_use_hint(iterator hint, Args &&...args);
+
+        template<class ...Args>
+        iterator emplace_unique_use_hint(iterator hint, Args &&...args);
+
+        // insert
+        iterator insert_multi(const value_type &value);
+
+        iterator insert_multi(value_type &&value) {
+            return emplace_multi(mystl::move(value));
+        }
+
+        iterator insert_multi(iterator hint, const value_type &value) {
+            return emplace_multi_use_hint(hint, value);
+        }
+
+        iterator insert_multi(iterator hint, value_type &&value) {
+            return emplace_multi_use_hint(hint, mystl::move(value));
+        }
+
+        template<class InputIterator>
+        void insert_multi(InputIterator first, InputIterator last) {
+            size_type n = mystl::distance(first, last);
+            THROW_LENGTH_ERROR_IF(node_count_ > max_size() - n, "rb_tree<T, Comp>'s size too big");
+            for (; n > 0; --n, ++first)
+                insert_multi(end(), *first);
+        }
+
+        mystl::pair<iterator, bool> insert_unique(const value_type &value);
+
+        mystl::pair<iterator, bool> insert_unique(value_type &&value) {
+            return emplace_unique(mystl::move(value));
+        }
+
+        iterator insert_unique(iterator hint, const value_type &value) {
+            return emplace_unique_use_hint(hint, value);
+        }
+
+        iterator insert_unique(iterator hint, value_type &&value) {
+            return emplace_unique_use_hint(hint, mystl::move(value));
+        }
+
+        template<class InputIterator>
+        void insert_unique(InputIterator first, InputIterator last) {
+            size_type n = mystl::distance(first, last);
+            THROW_LENGTH_ERROR_IF(node_count_ > max_size() - n, "rb_tree<T, Comp>'s size too big");
+            for (; n > 0; --n, ++first)
+                insert_unique(end(), *first);
+        }
+
+        // erase
+        iterator erase(iterator hint);
+
+        size_type erase_multi(const key_type &key);
+
+        size_type erase_unique(const key_type &key);
+
+        void erase(iterator first, iterator last);
+
+        void clear();
+
+        // rb_tree 相关操作
+        iterator find(const key_type &key);
+
+        const_iterator find(const key_type &key) const;
+
+        size_type count_multi(const key_type &key) const {
+            auto p = equal_range_multi(key);
+            return static_cast<size_type>(mystl::distance(p.first, p.second));
+        }
+
+        size_type count_unique(const key_type &key) const {
+            return find(key) != end() ? 1 : 0;
+        }
+
+        iterator lower_bound(const key_type &key);
+
+        const_iterator lower_bound(const key_type &key) const;
+
+        iterator upper_bound(const key_type &key);
+
+        const_iterator upper_bound(const key_type &key) const;
+
+        mystl::pair<iterator, iterator>
+        equal_range_multi(const key_type &key) {
+            return mystl::pair<iterator, iterator>(lower_bound(key), upper_bound(key));
+        }
+
+        mystl::pair<const_iterator, const_iterator>
+        equal_range_multi(const key_type &key) const {
+            return mystl::pair<const_iterator, const_iterator>(lower_bound(key), upper_bound(key));
+        }
+
+        mystl::pair<iterator, iterator>
+        equal_range_unique(const key_type &key) {
+            iterator it = find(key);
+            auto next = it;
+            return it == end() ? mystl::make_pair(it, it) : mystl::make_pair(it, ++next);
+        }
+
+        mystl::pair<const_iterator, const_iterator>
+        equal_range_unique(const key_type &key) const {
+            const_iterator it = find(key);
+            auto next = it;
+            return it == end() ? mystl::make_pair(it, it) : mystl::make_pair(it, ++next);
+        }
+
+        void swap(rb_tree &rhs) noexcept;
+
+        // node related
+        template<class ...Args>
+        node_ptr create_node(Args &&... args);
+
+        node_ptr clone_node(base_ptr x);
+
+        void destroy_node(node_ptr p);
+
+        // init / reset
+        void rb_tree_init();
+
+        void reset();
+
+        // get insert pos
+        mystl::pair<base_ptr, bool>
+        get_insert_multi_pos(const key_type &key);
+
+        mystl::pair<mystl::pair<base_ptr, bool>, bool>
+        get_insert_unique_pos(const key_type &key);
+
+        // insert value / insert node
+        iterator insert_value_at(base_ptr x, const value_type &value, bool add_to_left);
+
+        iterator insert_node_at(base_ptr x, node_ptr node, bool add_to_left);
+
+        // insert use hint
+        iterator insert_multi_use_hint(iterator hint, key_type key, node_ptr node);
+
+        iterator insert_unique_use_hint(iterator hint, key_type key, node_ptr node);
+
+        // copy tree / erase tree
+        base_ptr copy_from(base_ptr x, base_ptr p);
+
+        void erase_since(base_ptr x);
     };
+
+/**********************************************************************************************/
+
+// 复制构造函数
+    template<class T, class Compare>
+    rb_tree<T, Compare>
+    rb_Tree(const rb_tree &rhs) {
+        rb_tree_init();
+        if (rhs.node_count_ != 0) {
+            // copy_from：递归复制一颗树，节点从 rhs.root() 开始，header_ 为 x 的父节点
+            root() = copy_from(rhs.root(), header_);  // 返回的是root节点，其中header_和root互相为对方的父节点
+            leftmost() = rb_tree_min(root());  // 找到最小的节点
+            rightmost() = rb_tree_max(root());  // 找到最大的节点
+        }
+        // 复制参数
+        node_count_ = rhs.node_count_;
+        key_comp_ = rhs.key_comp_;
+    }
+
+// 移动构造函数
+    template<class T, class Compare>
+    rb_tree<T, Compare>::
+    rb_tree(rb_tree &&rhs) noexcept
+            : header_(mystl::move(rhs.header_)),
+              node_count_(rhs.node_count_),
+              key_comp_(rhs.key_comp_) {
+        rhs.reset();
+    }
+
+// 复制赋值操作符
+    template<class T, class Compare>
+    rb_tree<T, Compare> &
+    rb_tree<T, Compare>::
+    operator=(const rb_tree &rhs) {
+        if (this != &rhs) {
+            clear();
+            if (rhs.node_count_ != 0) {
+                root() = copy_from(rhs.root(), header_);
+                leftmost() = rb_tree_min(root());
+                rightmost() = rb_tree_max(root());
+            }
+            node_count_ = rhs.node_count_;
+            key_comp_ = rhs.key_comp_;
+        }
+        return *this;
+    }
+
+// 移动赋值操作符
+    template<class T, class Compare>
+    rb_tree<T, Compare> &
+    rb_tree<T, Compare>::
+    operator=(rb_tree &&rhs) {
+        clear();
+        header_ = mystl::move(rhs.header_);
+        node_count_ = rhs.node_count_;
+        key_comp_ = rhs.key_comp_;
+        rhs.reset();
+        return *this;
+    }
+
+// 就地插入元素，键值允许重复
+    template<class T, class Compare>
+    template<class ...Args>
+    typename rb_tree<T, Compare>::iterator
+    rb_tree<T, Compare>::
+    emplace_multi(Args &&args...) {
+        THROW_LENGTH_ERROR_IF(node_count_ > max_size() - 1, "rb_tree<T, Comp>'s size too big");
+        node_ptr np = create_node(mystl::forward<Args>(args)...);
+        // 这个是什么？
+        auto res = get_insert_multi_pos(value_traits::get_key(np->value));
+        // 在指定位置插入元素？
+        return insert_node_at(res.first, np, res.second);
+    }
+
+// 就地插入元素，键值不允许重复
+    template<class T, class Compare>
+    template<class ...Args>
+    mystl::pair<typename rb_tree<T, Compare>::iterator, bool>
+    rb_tree<T, Compare>::
+    emplace_unique(Args &&args...) {
+        THROW_LENGTH_ERROR_IF(node_count_ > max_size() - 1, "rb_tree<T, Comp>'s size too big");
+        node_ptr np = create_node(mystl::forward<Args>(args)...);
+        auto res = get_insert_unique_pos(value_traits::get_key(np->value));
+        if (res.second) {
+            // 插入成功
+            // 让两个数据成为一个 pair，并初始化值为后面两个
+            return mystl::make_pair(insert_node_at(res.first.first, np, res.first.second), true);
+        }
+        // 插入失败
+        // 删除临时节点
+        destroy_node(np);
+        // 让两个数据成为一个 pair，并初始化值为后面两个
+        return mystl::make_pair(iterator(res.first.first), false);
+    }
+
+
+
+
+
+/*******************************************************************************************/
+
+// get_insert_multi_pos 函数
+// 找到插入位置，可重复
+    template<class T, class Compare>
+    mystl::pair<typename rb_tree<T, Compare>::base_ptr, bool>
+    rb_tree<T, Compare>::get_insert_multi_pos(const key_type &key) {
+        // 返回一个pair，其中第一个参数是插入点的父节点，bool表示是否在左边插入
+        auto x = root();
+        auto y = header_;
+        bool add_to_left = true;
+        while (x != nullptr) {
+            y = x;
+            // 记录是在树的左边还是右边插入
+            add_to_left = key_comp_(key, value_traits::get_key(x->get_node_ptr()->value));
+            x = add_to_left ? x->left : x->right;
+        }
+        return mystl::make_pair(y, add_to_left);
+    }
+
+
+// get_insert_unique_pos 函数
+// 找到唯一的插入位置
+    template<class T, class Compare>
+    mystl::pair<mystl::pair<typename rb_tree<T, Compare>::base_ptr, bool>, bool>
+    rb_tree<T, Compare>::get_insert_unique_pos(const key_type &key) {
+        // 返回一个pair，第一个值为一个pair，包含插入点的父节点和一个bool表示是否在左边插入
+        // 第二个bool表示是否插入成功
+        auto x = root();
+        auto y = header_;
+        bool add_to_left = true;  // 树为空时也在header_左边插入
+        while (x != nullptr) {
+            // 若当前根节点不为空
+            y = x;
+            // key_comp_：节点键值比较的准则
+            // 根据比较规则比较 传入的key 和 根节点的key
+            add_to_left = key_comp_(key, value_traits::get_key(x->get_node_ptr()->value));
+            // 判断是否添加到左边
+            x = add_to_left ? x->left : x->right;
+        }
+        iterator j = iterator(y);  // 树为空时也在 header_ 左边插入
+        if (add_to_left) {
+            // 若要在树的左边插入
+            if (y == header_ || j == begin()) {
+                // 如果树为空树或插入点在最左节点处，肯定可以插入新的节点
+                // begin()返回的是leftmost即最小的元素
+                // 返回插入点的父节点以及在左边插入、插入成功的标志
+                return mystl::make_pair(mystl::make_pair(y, true), true);
+            } else {
+                // 此时树不为空，且插入点不在最左边
+                // 找j的前一个元素判断是否重复
+                // 否则，如果存在重复节点，那么 --j 就是重复的值
+                --j;
+            }
+        }
+        if (key_comp_(value_traits::get_key(*j), key)) {
+            // 这里若不重复只可能返回true，因为已经按序找到位置
+            // 表明新节点没有重复
+            return mystl::make_pair(mystl::make_pair(y, add_to_left), true);
+        }
+        // 进行至此，表示新节点与现有节点键值重复
+        return mystl::make_pair(mystl::make_pair(y, add_to_left), false);
+    }
 
 
 }
