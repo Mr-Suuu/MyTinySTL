@@ -1276,6 +1276,7 @@ namespace mystl {
                 // key 小于等于 x 键值，向左走
                 y = x, x = x->left;
             } else {
+                // y 为什么不跟着走？
                 x = x->right;
             }
         }
@@ -1283,14 +1284,150 @@ namespace mystl {
         return (j == end() || key_comp_(key, value_traits::get_key(*j))) ? end() : j;
     }
 
+// 键值不小于 key 的第一个位置
+    template<class T, class Compare>
+    typename rb_tree<T, Compare>::iterator
+    rb_tree<T, Compare>::
+    lower_bound(const key_type &key) {
+        auto y = header_;
+        auto x = root();
+        while (x != nullptr) {
+            if (!key_comp_(value_traits::get_key(x->get_node_ptr()->value), key)) {
+                // key <= x
+                y = x, x = x->left;
+            } else {
+                x = x->right;
+            }
+        }
+        return iterator(y);
+    }
 
+    template<class T, class Compare>
+    typename rb_tree<T, Compare>::const_iterator
+    rb_tree<T, Compare>::
+    lower_bound(const key_type &key) const {
+        auto y = header_;
+        auto x = root();
+        while (x != nullptr) {
+            if (!key_comp_(value_traits::get_key(x->get_node_ptr()->value), key)) {
+                // key <= x
+                y = x, x = x->left;
+            } else {
+                x = x->right;
+            }
+        }
+        return const_iterator(y);
+    }
 
+// 键值不小于 key 的最后一个位置
+    template<class T, class Compare>
+    typename rb_tree<T, Compare>::iterator
+    rb_tree<T, Compare>::
+    upper_bound(const key_type &key) {
+        auto y = header_;
+        auto x = root();
+        while (x != nullptr) {
+            if (key_comp_(key, value_traits::get_key(x->get_node_ptr()->value))) { // key < x
+                y = x, x = x->left;
+            } else {
+                x = x->right;
+            }
+        }
+        return iterator(y);
+    }
 
+    template<class T, class Compare>
+    typename rb_tree<T, Compare>::const_iterator
+    rb_tree<T, Compare>::
+    upper_bound(const key_type &key) const {
+        auto y = header_;
+        auto x = root();
+        while (x != nullptr) {
+            if (key_comp_(key, value_traits::get_key(x->get_node_ptr()->value))) { // key < x
+                y = x, x = x->left;
+            } else {
+                x = x->right;
+            }
+        }
+        return const_iterator(y);
+    }
 
+// 交换 rb_tree
+    template<class T, class Compare>
+    void rb_tree<T, Compare>::
+    swap(rb_tree &rhs) noexcept {
+        if (this != &rhs) {
+            mystl::swap(header_, rhs.header_);
+            mystl::swap(node_count_, rhs.node_count_);
+            mystl::swap(key_comp_, rhs.key_comp_);
+        }
+    }
 
 /*******************************************************************************************/
+// helper function
 
-// get_insert_multi_pos 函数
+// 创建一个节点
+    template<class T, class Compare>
+    template<class ...Args>
+    typename rb_tree<T, Compare>::node_ptr
+    rb_tree<T, Compare>::
+    create_node(Args &&args...) {
+        auto tmp = node_allocator::allocate(1);
+        try {
+            // 根据args创建一个节点
+            data_allocator::construct(mystl::address_of(tmp->value), mystl::forward<Args>(args)...);
+            // 指针均设置为空
+            tmp->left = nullptr;
+            tmp->right = nullptr;
+            tmp->parent = nullptr;
+        } catch (...) {
+            node_allocator::deallocate(tmp);
+            throw;
+        }
+        return tmp;
+    }
+
+// 复制一个节点
+    template<class T, class Compare>
+    typename rb_tree<T, Compare>::node_ptr
+    rb_tree<T, Compare>::
+    clone_node(base_ptr x) {
+        node_ptr tmp = create_node(x->get_node_ptr()->value);
+        tmp->color = x->color;
+        tmp->left = nullptr;
+        tmp->right = nullptr;
+        return tmp;
+    }
+
+// 销毁一个节点
+    template<class T, class Compare>
+    void rb_tree<T, Compare>::
+    destroy_node(node_ptr p) {
+        // 回收资源
+        data_allocator::destroy(&p->value);
+        node_allocator::deallocate(p);
+    }
+
+// 初始化容器
+    template<class T, class Compare>
+    void rb_tree<T, Compare>::
+    rb_tree_init() {
+        header_ = base_allocator::allocate(1);
+        header_->color = rb_tree_red;  // header_ 节点颜色为红色，与 root 区分
+        root() = nullptr;
+        leftmost() = nullptr;
+        rightmost() = nullptr;
+        node_count_ = 0;
+    }
+
+// reset 函数
+    template<class T, class Compare>
+    void rb_tree<T, Compare>::reset() {
+        header_ = nullptr;
+        node_count_ = 0;
+    }
+
+    // get_insert_multi_pos 函数
 // 找到插入位置，可重复
     template<class T, class Compare>
     mystl::pair<typename rb_tree<T, Compare>::base_ptr, bool>
@@ -1350,6 +1487,44 @@ namespace mystl {
         }
         // 进行至此，表示新节点与现有节点键值重复
         return mystl::make_pair(mystl::make_pair(y, add_to_left), false);
+    }
+
+// insert_value_at 函数
+// x 为插入点的父节点，value 为要插入的值，add_to_left 表示是否在左边插入
+    template<class T, class Compare>
+    typename rb_tree<T, Compare>::iterator
+    rb_tree<T, Compare>::
+    insert_value_at(base_ptr x, const value_type &value, bool add_to_left) {
+        // 创建节点
+        node_ptr node = create_node(value);
+        // 指定父节点
+        node->parent = x;
+        auto base_node = node->get_base_ptr();
+        if (x == header_) {
+            // 若树为空
+            root() = base_node;
+            leftmost() = base_node;
+            rightmost() = base_node;
+        } else if (add_to_left) {
+            // 若树不为空且在树的左边插入
+            x->left = base_node;
+            if (leftmost() == x) {
+                // 若插入位置的父节点是最小节点，则更新最小节点为当前节点
+                leftmost() = base_node;
+            }
+        } else {
+            // 若树不为空且在树的右边插入
+            x->right = base_node;
+            if (rightmost() == x) {
+                // 若插入位置的父节点是最大节点，则更新最大节点为当前节点
+                rightmost() = base_node;
+            }
+        }
+        // 重新平衡红黑树
+        rb_tree_insert_rebalance(base_node, root());
+        ++node_count_;
+        // 返回插入位置的迭代器
+        return iterator(node);
     }
 
 
