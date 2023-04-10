@@ -1490,6 +1490,7 @@ namespace mystl {
     }
 
 // insert_value_at 函数
+// 根据值构造节点并插入
 // x 为插入点的父节点，value 为要插入的值，add_to_left 表示是否在左边插入
     template<class T, class Compare>
     typename rb_tree<T, Compare>::iterator
@@ -1527,7 +1528,185 @@ namespace mystl {
         return iterator(node);
     }
 
+// 在 x 节点处插入新的节点
+// x 为插入点的父节点，node为要插入的节点，add_to_left 表示是否在左边插入
+    template<class T, class Compare>
+    typename rb_tree<T, Compare>::iterator
+    rb_tree<T, Compare>::
+    insert_node_at(base_ptr x, node_ptr node, bool add_to_left) {
+        // 更新父节点
+        node->parent = x;
+        // 获得节点的指针
+        auto base_node = node->get_base_ptr();
+        if (x == header_) {
+            // 若树为空
+            root() = base_node;
+            leftmost() = base_node;
+            rightmost() = base_node;
+        } else if (add_to_left) {
+            // 若树不为空且在左边插入
+            x->left = base_node;
+            if (leftmost() == x) {
+                leftmost() = base_node;
+            }
+        } else {
+            // 若树不为空且在右边插入
+            x->right = base_node;
+            if (rightmost() == x) {
+                rightmost() = base_node;
+            }
+        }
+        rb_tree_insert_rebalance(base_node, root());
+        ++node_count_;
+        return iterator(node);
+    }
+
+// 插入元素，键值允许重复，使用 hint
+    template<class T, class Compare>
+    typename rb_tree<T, Compare>::iterator
+    rb_tree<T, Compare>::
+    insert_multi_use_hint(iterator hint, key_type key, node_ptr node) {
+        // 在hint附近找可插入的位置
+        auto np = hint.node;  // 指向节点本身
+        auto before = hint;
+        --before;  // 找到前一个节点
+        auto bnp = before.node;
+        if (!key_comp_(key, value_traits::get_key(*before)) &&
+            !key_comp_(value_traits::get_key(*hint), key)) {
+            // before <= node <= hint
+            // 优先在前一个节点的右节点插入
+            if (bnp->right == nullptr) {
+                return insert_node_at(bnp, node, false);
+            } else if (np->left == nullptr) {
+                return insert_node_at(np, node, true);
+            }
+        }
+        // 找到key对应的位置并返回
+        auto pos = get_insert_multi_pos(key);
+        return insert_node_at(pos.first, node, pos.second);
+    }
+
+// 插入元素，键值不允许重复，使用hint
+    template<class T, class Compare>
+    typename rb_tree<T, Compare>::iterator
+    rb_tree<T, Compare>::
+    insert_unique_use_hint(iterator hint, key_type key, node_ptr node) {
+        // 在hint附近寻找可插入的位置
+        auto np = hint.node;
+        auto before = hint;
+        --before;
+        auto bnp = before.node;
+        // 若根据hint找到位置则插入
+        if (key_comp_(value_traits::get_key(*before), key) &&
+            key_comp_(key, value_traits::get_key(*hint))) {
+            // before < node < hint
+            if (bnp->right == nullptr) {
+                return insert_node_at(bnp, node, false);
+            } else if (np->left == nullptr) {
+                return insert_node_at(np, node, true);
+            }
+        }
+        // 若找不到则全局搜索不重复的位置
+        auto pos = get_insert_unique_pos(key);
+        if (!pos.second) {
+            destroy_node(node);
+            return pos.first.first;
+        }
+        return insert_node_at(pos.first.first, node, pos.first.second);
+    }
+
+// copy_from 函数
+// 递归复制一棵树，节点从x开始，p为x的父节点
+    template<class T, class Compare>
+    typename rb_tree<T, Compare>::base_ptr
+    rb_tree<T, Compare>::copy_from(base_ptr x, base_ptr p) {
+        auto top = clone_node(x);
+        top->parent = p;
+        try {
+            if (x->right) {
+                // 递归复制右子树
+                top->right = copy_from(x->right, top);
+            }
+            // 左子树操作
+            p = top;
+            x = x->left;
+            while (x != nullptr) {
+                // 复制当前节点
+                auto y = clone_node(x);
+                // 连接到p的左子树上
+                p->left = y;
+                y->parent = p;
+                if (x->parent) {
+                    // 若x存在父节点，则将x的右子树复制到新建节点y的右子树上
+                    y->right = copy_from(x->right, y);
+                }
+                // 更新节点
+                p = y;
+                x = x->left;
+            }
+        } catch (...) {
+            // 若报错则从top开始删除并抛出错误
+            erase_since(top);
+            throw;
+        }
+        // 返回复制的树的头节点
+        return top;
+    }
+
+// erase_since 函数
+// 从 x 节点开始删除该节点及其子树
+    template<class T, class Compare>
+    void rb_tree<T, Compare>::
+    erase_since(base_ptr x) {
+        while (x != nullptr) {
+            // 递归删除右子树
+            erase_since(x->right);
+            // 保存当前节点的左子树
+            auto y = x->left;
+            // 删除当前节点
+            destroy_node(x->get_node_ptr());
+            // 令当前节点指向左子树，重复上述步骤删除
+            x = y;
+        }
+    }
+
+// 重载比较操作符
+    template<class T, class Compare>
+    bool operator==(const rb_tree<T, Compare> &lhs, const rb_tree<T, Compare> &rhs) {
+        return lhs.size() == rhs.size() && mystl::equal(lhs.begin(), lhs.end(), rhs.begin());
+    }
+
+    template<class T, class Compare>
+    bool operator<(const rb_tree<T, Compare> &lhs, const rb_tree<T, Compare> &rhs) {
+        return mystl::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+    }
+
+    template<class T, class Compare>
+    bool operator!=(const rb_tree<T, Compare> &lhs, const rb_tree<T, Compare> &rhs) {
+        return !(lhs == rhs);
+    }
+
+    template<class T, class Compare>
+    bool operator>(const rb_tree<T, Compare> &lhs, const rb_tree<T, Compare> &rhs) {
+        return rhs < lhs;
+    }
+
+    template<class T, class Compare>
+    bool operator<=(const rb_tree<T, Compare> &lhs, const rb_tree<T, Compare> &rhs) {
+        return !(rhs < lhs);
+    }
+
+    template<class T, class Compare>
+    bool operator>=(const rb_tree<T, Compare> &lhs, const rb_tree<T, Compare> &rhs) {
+        return !(lhs < rhs);
+    }
+
+// 重载 mystl 的 swap
+    template<class T, class Compare>
+    void swap(rb_tree<T, Compare> &lhs, rb_tree<T, Compare> &rhs) noexcept {
+        lhs.swap(rhs);
+    }
+
 
 }
-
 #endif
